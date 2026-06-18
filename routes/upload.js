@@ -59,7 +59,9 @@ router.post('/', (req, res) => {
     }
 
     // Return the public URL for static serving
-    const fileUrl = `http://localhost:5000/assets/${req.file.filename}`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/assets/${req.file.filename}`;
     res.json({ imageUrl: fileUrl });
   });
 });
