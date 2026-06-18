@@ -3,8 +3,8 @@ services:
   - type: web
     name: kraft-backend
     env: docker
-    dockerfilePath: kraft-backend/Dockerfile
-    dockerContext: kraft-backend
+    dockerfilePath: Dockerfile
+    dockerContext: .
     # Note: Persistent disks require a paid plan (starter, standard, etc.).
     # If you want to use the Free tier, change plan to 'free' and comment out or remove the 'disk' section.
     # (Be aware that on the Free plan, database data will reset every time the container restarts or redeploys).
