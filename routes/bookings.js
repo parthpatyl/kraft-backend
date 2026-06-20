@@ -267,8 +267,45 @@ router.post('/inquiry', async (req, res, next) => {
   try {
     const { name, email, phone, packageId, startDate, endDate, guests, notes } = req.body;
 
-    if (!name || !email || !packageId) {
-      return res.status(400).json({ error: 'Name, email, and packageId are required fields' });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'A valid email is required' });
+    }
+    if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
+      return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+    }
+    if (!packageId) {
+      return res.status(400).json({ error: 'Package ID is required' });
+    }
+    if (packageId === 'custom-other' && (!req.body.customDestination || !req.body.customDestination.trim())) {
+      return res.status(400).json({ error: 'Custom destination name is required' });
+    }
+    
+    // Date validations
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!startDate) {
+      return res.status(400).json({ error: 'Start date is required' });
+    }
+    const start = new Date(startDate);
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({ error: 'Invalid start date format' });
+    }
+    if (start < today) {
+      return res.status(400).json({ error: 'Start date cannot be in the past' });
+    }
+    
+    if (!endDate) {
+      return res.status(400).json({ error: 'End date is required' });
+    }
+    const end = new Date(endDate);
+    if (isNaN(end.getTime())) {
+      return res.status(400).json({ error: 'Invalid end date format' });
+    }
+    if (end < start) {
+      return res.status(400).json({ error: 'End date cannot be before start date' });
     }
 
     // 1. Fetch package or handle custom destination

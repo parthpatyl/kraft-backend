@@ -57,6 +57,43 @@ router.post('/', async (req, res, next) => {
       logs
     } = req.body;
 
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'A valid email is required' });
+    }
+    if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
+      return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+    }
+    if (walletBalance) {
+      const cleanWallet = parseFloat(walletBalance.replace('₹', '').replace('$', '').replace(/,/g, ''));
+      if (isNaN(cleanWallet) || cleanWallet < 0) {
+        return res.status(400).json({ error: 'Initial travel credit must be a non-negative number' });
+      }
+    }
+    if (passport) {
+      if (passport.number && passport.number.trim() !== 'Pending' && (!passport.expires || passport.expires === 'Pending')) {
+        return res.status(400).json({ error: 'Passport expiry date is required if passport number is provided' });
+      }
+      if (passport.expires && passport.expires !== 'Pending' && (!passport.number || passport.number.trim() === 'Pending')) {
+        return res.status(400).json({ error: 'Passport number is required if passport expiry date is provided' });
+      }
+    }
+    if (visa) {
+      if (visa.country && visa.country.trim() !== 'Pending' && (!visa.expires || visa.expires === 'Pending')) {
+        return res.status(400).json({ error: 'Visa expiry date is required if visa country is provided' });
+      }
+      if (visa.expires && visa.expires !== 'Pending' && (!visa.country || visa.country.trim() === 'Pending')) {
+        return res.status(400).json({ error: 'Visa target country is required if visa expiry date is provided' });
+      }
+    }
+    if (emergencyContact && emergencyContact.phone && emergencyContact.phone.trim() !== 'Not Listed') {
+      if (!/^[+0-9\s-()]{7,20}$/.test(emergencyContact.phone.trim())) {
+        return res.status(400).json({ error: 'Please enter a valid emergency contact phone number' });
+      }
+    }
+
     const id = req.body.id || `C-${crypto.randomUUID()}`;
 
     const queryText = `
@@ -116,6 +153,43 @@ router.put('/:id', async (req, res, next) => {
       lastContact,
       logs
     } = req.body;
+
+    if (name !== undefined && !name.trim()) {
+      return res.status(400).json({ error: 'Name cannot be empty' });
+    }
+    if (email !== undefined && !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'A valid email is required' });
+    }
+    if (phone !== undefined && !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
+      return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+    }
+    if (walletBalance !== undefined) {
+      const cleanWallet = parseFloat(walletBalance.replace('₹', '').replace('$', '').replace(/,/g, ''));
+      if (isNaN(cleanWallet) || cleanWallet < 0) {
+        return res.status(400).json({ error: 'Travel wallet credit must be a non-negative number' });
+      }
+    }
+    if (passport !== undefined) {
+      if (passport.number && passport.number.trim() !== 'Pending' && (!passport.expires || passport.expires === 'Pending')) {
+        return res.status(400).json({ error: 'Passport expiry date is required if passport number is provided' });
+      }
+      if (passport.expires && passport.expires !== 'Pending' && (!passport.number || passport.number.trim() === 'Pending')) {
+        return res.status(400).json({ error: 'Passport number is required if passport expiry date is provided' });
+      }
+    }
+    if (visa !== undefined) {
+      if (visa.country && visa.country.trim() !== 'Pending' && (!visa.expires || visa.expires === 'Pending')) {
+        return res.status(400).json({ error: 'Visa expiry date is required if visa country is provided' });
+      }
+      if (visa.expires && visa.expires !== 'Pending' && (!visa.country || visa.country.trim() === 'Pending')) {
+        return res.status(400).json({ error: 'Visa target country is required if visa expiry date is provided' });
+      }
+    }
+    if (emergencyContact !== undefined && emergencyContact.phone && emergencyContact.phone.trim() !== 'Not Listed') {
+      if (!/^[+0-9\s-()]{7,20}$/.test(emergencyContact.phone.trim())) {
+        return res.status(400).json({ error: 'Please enter a valid emergency contact phone number' });
+      }
+    }
 
     const currentClientRes = await query('SELECT * FROM clients WHERE id = $1', [id]);
     if (currentClientRes.rows.length === 0) {
