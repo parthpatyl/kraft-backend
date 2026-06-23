@@ -28,12 +28,15 @@ async function seed() {
     console.log('Seeding packages...');
     for (const pkg of initialPackages) {
       await query(
-        `INSERT INTO packages (id, name, duration, base_price, region, slots_booked, slots_total, trend, color, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        `INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, slots_booked, slots_total, trend, color, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name,
            duration = EXCLUDED.duration,
            base_price = EXCLUDED.base_price,
+           cost_price = EXCLUDED.cost_price,
+           tax_rate = EXCLUDED.tax_rate,
+           tax_inclusive = EXCLUDED.tax_inclusive,
            region = EXCLUDED.region,
            slots_booked = EXCLUDED.slots_booked,
            slots_total = EXCLUDED.slots_total,
@@ -52,6 +55,9 @@ async function seed() {
           pkg.name,
           pkg.duration,
           pkg.basePrice,
+          pkg.costPrice ?? null,
+          pkg.taxRate ?? 5,
+          pkg.taxInclusive ?? true,
           pkg.region,
           pkg.slots.booked,
           pkg.slots.total,
@@ -122,14 +128,16 @@ async function seed() {
       const pkgId = pkgRes.rows[0]?.id || null;
 
       await query(
-        `INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, departure_date, status, agent)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, departure_date, status, agent)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (id) DO UPDATE SET
            client_name = EXCLUDED.client_name,
            client_id = EXCLUDED.client_id,
            package_name = EXCLUDED.package_name,
            package_id = EXCLUDED.package_id,
            amount = EXCLUDED.amount,
+           tax_amount = EXCLUDED.tax_amount,
+           net_amount = EXCLUDED.net_amount,
            departure_date = EXCLUDED.departure_date,
            status = EXCLUDED.status,
            agent = EXCLUDED.agent`,
@@ -139,7 +147,9 @@ async function seed() {
           clientId,
           booking.package,
           pkgId,
-          booking.amount,
+          booking.amount ?? 0,
+          booking.taxAmount ?? 0,
+          booking.netAmount ?? booking.amount ?? 0,
           booking.date,
           booking.status,
           booking.agent

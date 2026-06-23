@@ -18,7 +18,7 @@ export function mapClientToFrontend(row) {
     passport: row.passport || { number: 'Pending', expires: 'Pending', status: 'Valid' },
     visa: row.visa || { country: 'Pending', expires: 'Pending', class: 'Tourist' },
     emergencyContact: row.emergency_contact || { name: 'Not Listed', phone: 'Not Listed', relation: 'Not Listed' },
-    walletBalance: row.wallet_balance,
+    walletBalance: Number(row.wallet_balance) || 0,
     notes: row.notes,
     lastContact: row.last_contact,
     logs: row.logs || []
@@ -66,9 +66,9 @@ router.post('/', async (req, res, next) => {
     if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
       return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
     }
-    if (walletBalance) {
-      const cleanWallet = parseFloat(walletBalance.replace('₹', '').replace('$', '').replace(/,/g, ''));
-      if (isNaN(cleanWallet) || cleanWallet < 0) {
+    if (walletBalance !== undefined) {
+      const parsed = typeof walletBalance === 'string' ? parseFloat(walletBalance.replace(/[^0-9.-]+/g, '')) : Number(walletBalance);
+      if (isNaN(parsed) || parsed < 0) {
         return res.status(400).json({ error: 'Initial travel credit must be a non-negative number' });
       }
     }
@@ -119,7 +119,7 @@ router.post('/', async (req, res, next) => {
       JSON.stringify(passport || { number: 'Pending', expires: 'Pending', status: 'Valid' }),
       JSON.stringify(visa || { country: 'Pending', expires: 'Pending', class: 'Tourist' }),
       JSON.stringify(emergencyContact || { name: 'Not Listed', phone: 'Not Listed', relation: 'Not Listed' }),
-      walletBalance || '$0.00',
+      parseFloat(walletBalance) || 0,
       notes || 'No notes added yet.',
       lastContact || new Date().toISOString().split('T')[0],
       JSON.stringify(initialLogs)
@@ -164,8 +164,8 @@ router.put('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
     }
     if (walletBalance !== undefined) {
-      const cleanWallet = parseFloat(walletBalance.replace('₹', '').replace('$', '').replace(/,/g, ''));
-      if (isNaN(cleanWallet) || cleanWallet < 0) {
+      const parsed = typeof walletBalance === 'string' ? parseFloat(walletBalance.replace(/[^0-9.-]+/g, '')) : Number(walletBalance);
+      if (isNaN(parsed) || parsed < 0) {
         return res.status(400).json({ error: 'Travel wallet credit must be a non-negative number' });
       }
     }
@@ -233,7 +233,7 @@ router.put('/:id', async (req, res, next) => {
       passport !== undefined ? JSON.stringify(passport) : current.passport,
       visa !== undefined ? JSON.stringify(visa) : current.visa,
       emergencyContact !== undefined ? JSON.stringify(emergencyContact) : current.emergency_contact,
-      walletBalance !== undefined ? walletBalance : current.wallet_balance,
+      walletBalance !== undefined ? (typeof walletBalance === 'string' ? parseFloat(walletBalance.replace(/[^0-9.-]+/g, '')) : Number(walletBalance)) : current.wallet_balance,
       notes !== undefined ? notes : current.notes,
       lastContact !== undefined ? lastContact : current.last_contact,
       logs !== undefined ? JSON.stringify(logs) : current.logs,

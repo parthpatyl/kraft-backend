@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { query } from '../db/index.js';
+import { query, getClient } from '../db/index.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -10,18 +11,22 @@ export function mapBookingToFrontend(row) {
     client_id: row.client_id,
     package: row.package_name,
     package_id: row.package_id,
-    amount: row.amount,
+    amount: Number(row.amount) || 0,
+    taxAmount: Number(row.tax_amount) || 0,
+    netAmount: Number(row.net_amount) || 0,
+    discountType: row.discount_type || null,
+    discountValue: Number(row.discount_value) || 0,
     date: formatDateToString(row.date),
     status: row.status,
     agent: row.agent || 'Unassigned',
     guests: row.guests || 1,
+    groupMembers: row.group_members || [],
     notes: row.notes || '',
     startDate: row.start_date,
     endDate: row.end_date
   };
 }
 
-// Utility to format date to "Jun 25, 2026"
 function formatDateToString(dateStr) {
   if (!dateStr) return '';
   const dateObj = new Date(dateStr);
@@ -46,163 +51,229 @@ router.get('/', async (req, res, next) => {
 
 // POST create booking (from Admin Dashboard)
 router.post('/', async (req, res, next) => {
+  const {
+    client,
+    package: packageName,
+    amount,
+    date,
+    status,
+    agent,
+    guests,
+    groupMembers,
+    notes,
+    startDate,
+    endDate
+  } = req.body;
+
+  const id = req.body.id || `BK-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+  const guestCount = parseInt(guests) || 1;
+
+  let clientId = null;
+  let packageId = null;
   try {
-    const {
-      client,
-      package: packageName,
-      amount,
-      date,
-      status,
-      agent,
-      guests,
-      notes,
-      startDate,
-      endDate
-    } = req.body;
-
-    const id = req.body.id || `BK-${crypto.randomUUID()}`;
-
-    // Try to find client_id by client name
     const clientRes = await query('SELECT id FROM clients WHERE name = $1', [client]);
-    const clientId = clientRes.rows[0]?.id || null;
+    clientId = clientRes.rows[0]?.id || null;
 
-    // Try to find package_id by package name
-    const pkgRes = await query('SELECT id, base_price, slots_booked, slots_total FROM packages WHERE name = $1', [packageName]);
+    const pkgRes = await query('SELECT id, name, slots_booked, slots_total FROM packages WHERE name = $1', [packageName]);
     const packageItem = pkgRes.rows[0];
-    const packageId = packageItem?.id || null;
+    packageId = packageItem?.id || null;
+  } catch (error) {
+    return next(error);
+  }
 
-    // Slot validation (warn or block if full)
-    if (packageItem && packageItem.slots_booked >= packageItem.slots_total) {
-      return res.status(400).json({ error: `Error: No available booking slots remaining for ${packageName}.` });
+  const numericAmount = parseFloat(amount) || 0;
+  const taxAmount = Math.round(numericAmount * 0.05 * 100) / 100;
+  const netAmount = numericAmount + taxAmount;
+
+  // Normalize groupMembers: ensure index 0 matches primary contact
+  const members = Array.isArray(groupMembers) ? groupMembers : [];
+  if (members.length === 0) {
+    for (let i = 1; i < guestCount; i++) {
+      members.push({ name: `Guest ${i + 1}` });
     }
+  }
 
-    const queryText = `
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, departure_date, status, agent, guests, notes, start_date, end_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *
-    `;
+  const dbClient = await getClient();
+  let began = false;
+  try {
+    await dbClient.query('BEGIN');
+    began = true;
 
-    const result = await query(queryText, [
-      id,
-      client,
-      clientId,
-      packageName,
-      packageId,
-      amount,
-      date || null,
-      status || 'Pending',
-      agent || 'Unassigned',
-      guests || 1,
-      notes || '',
-      startDate || null,
-      endDate || null
-    ]);
-
-    // Increment package slots
+    // Atomic slot increment — consume guestCount slots
     if (packageId) {
-      await query('UPDATE packages SET slots_booked = slots_booked + 1 WHERE id = $1', [packageId]);
+      const slotRes = await dbClient.query(
+        'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+        [guestCount, packageId]
+      );
+      if (slotRes.rows.length === 0) {
+        await dbClient.query('ROLLBACK');
+        began = false;
+        return res.status(400).json({ error: `Not enough booking slots remaining for ${packageName}. Requested ${guestCount}, available slots insufficient.` });
+      }
     }
+
+    const insResult = await dbClient.query(`
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      RETURNING *
+    `, [
+      id, client, clientId, packageName, packageId,
+      numericAmount, taxAmount, netAmount,
+      date || null, status || 'Pending', agent || 'Unassigned',
+      guestCount, JSON.stringify(members), notes || '',
+      startDate || null, endDate || null
+    ]);
 
     // Log to client logs
     if (clientId) {
       const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
-      const clientLogsRes = await query('SELECT logs FROM clients WHERE id = $1', [clientId]);
-      const currentLogs = clientLogsRes.rows[0]?.logs || [];
+      const logsRes = await dbClient.query('SELECT logs FROM clients WHERE id = $1', [clientId]);
+      const currentLogs = logsRes.rows[0]?.logs || [];
       const updatedLogs = [
-        { time: timestamp, text: `System: Created new booking ${id} for package "${packageName}" (Departure: ${date}, Status: ${status})` },
+        { time: timestamp, text: `System: Created new booking ${id} for package "${packageName}" (Guests: ${guestCount}, Departure: ${date}, Status: ${status})` },
         ...currentLogs
       ];
-      await query('UPDATE clients SET logs = $1, last_contact = $2 WHERE id = $3', [JSON.stringify(updatedLogs), timestamp.split(' ')[0], clientId]);
+      await dbClient.query(
+        'UPDATE clients SET logs = $1, last_contact = $2 WHERE id = $3',
+        [JSON.stringify(updatedLogs), timestamp.split(' ')[0], clientId]
+      );
     }
 
-    res.status(201).json(mapBookingToFrontend(result.rows[0]));
+    await dbClient.query('COMMIT');
+    began = false;
+    res.status(201).json(mapBookingToFrontend(insResult.rows[0]));
   } catch (error) {
+    if (began) await dbClient.query('ROLLBACK');
     next(error);
+  } finally {
+    dbClient.release();
   }
 });
 
-// PUT update a booking (status, agent, amount, dates etc)
+// PUT update a booking (status, agent, amount, dates, guests, etc)
 router.put('/:id', async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const {
-      client,
-      package: packageName,
-      amount,
-      date,
-      status,
-      agent,
-      guests,
-      notes,
-      startDate,
-      endDate
-    } = req.body;
+  const { id } = req.params;
+  const {
+    client,
+    package: packageName,
+    amount,
+    discountType,
+    discountValue,
+    date,
+    status,
+    agent,
+    guests,
+    groupMembers,
+    notes,
+    startDate,
+    endDate
+  } = req.body;
 
+  let current;
+  try {
     const currentBookingRes = await query('SELECT * FROM bookings WHERE id = $1', [id]);
     if (currentBookingRes.rows.length === 0) {
       return res.status(404).json({ error: 'Booking not found' });
     }
+    current = currentBookingRes.rows[0];
+  } catch (error) {
+    return next(error);
+  }
 
-    const current = currentBookingRes.rows[0];
+  const dbClient = await getClient();
+  let began = false;
+  try {
+    await dbClient.query('BEGIN');
+    began = true;
 
-    // Handle package changes & slots tracking
     let updatedPackageName = packageName !== undefined ? packageName : current.package_name;
     let updatedPackageId = current.package_id;
+    const newGuestCount = guests !== undefined ? (parseInt(guests) || 1) : (current.guests || 1);
+    const oldGuestCount = current.guests || 1;
 
+    // Handle package changes & slot delta
     if (packageName !== undefined && packageName !== current.package_name) {
-      // Find new package
-      const newPkgRes = await query('SELECT id, slots_booked, slots_total FROM packages WHERE name = $1', [packageName]);
+      const newPkgRes = await dbClient.query('SELECT id, slots_booked, slots_total FROM packages WHERE name = $1', [packageName]);
       const newPkg = newPkgRes.rows[0];
       if (newPkg) {
-        if (newPkg.slots_booked >= newPkg.slots_total) {
-          return res.status(400).json({ error: `Error: No available booking slots remaining for ${packageName}.` });
+        // Release old slots
+        if (current.package_id) {
+          await dbClient.query(
+            'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+            [oldGuestCount, current.package_id]
+          );
+        }
+        // Claim new slots
+        const slotRes = await dbClient.query(
+          'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+          [newGuestCount, newPkg.id]
+        );
+        if (slotRes.rows.length === 0) {
+          await dbClient.query('ROLLBACK');
+          began = false;
+          return res.status(400).json({ error: `Not enough slots remaining for ${packageName}. Requested ${newGuestCount}.` });
         }
         updatedPackageId = newPkg.id;
-
-        // Decrement old package slots
-        if (current.package_id) {
-          await query('UPDATE packages SET slots_booked = GREATEST(0, slots_booked - 1) WHERE id = $1', [current.package_id]);
+      }
+    } else if (newGuestCount !== oldGuestCount) {
+      // Same package but guest count changed — adjust slots by delta
+      const delta = newGuestCount - oldGuestCount;
+      if (current.package_id) {
+        if (delta > 0) {
+          const slotRes = await dbClient.query(
+            'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+            [delta, current.package_id]
+          );
+          if (slotRes.rows.length === 0) {
+            await dbClient.query('ROLLBACK');
+            began = false;
+            return res.status(400).json({ error: `Not enough slots to add ${delta} more guests.` });
+          }
+        } else {
+          await dbClient.query(
+            'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+            [Math.abs(delta), current.package_id]
+          );
         }
-        // Increment new package slots
-        await query('UPDATE packages SET slots_booked = slots_booked + 1 WHERE id = $1', [newPkg.id]);
       }
     }
 
     const updatedClientName = client !== undefined ? client : current.client_name;
     let updatedClientId = current.client_id;
     if (client !== undefined && client !== current.client_name) {
-      const newClientRes = await query('SELECT id FROM clients WHERE name = $1', [client]);
+      const newClientRes = await dbClient.query('SELECT id FROM clients WHERE name = $1', [client]);
       updatedClientId = newClientRes.rows[0]?.id || null;
     }
 
-    const queryText = `
-      UPDATE bookings SET
-        client_name = $1,
-        client_id = $2,
-        package_name = $3,
-        package_id = $4,
-        amount = $5,
-        departure_date = $6,
-        status = $7,
-        agent = $8,
-        guests = $9,
-        notes = $10,
-        start_date = $11,
-        end_date = $12
-      WHERE id = $13
-      RETURNING *
-    `;
+    const resolvedAmount = amount !== undefined ? (parseFloat(amount) || 0) : Number(current.amount);
+    const resolvedTaxAmount = amount !== undefined ? Math.round(resolvedAmount * 0.05 * 100) / 100 : Number(current.tax_amount || 0);
+    const resolvedDiscountType = discountType !== undefined ? discountType : current.discount_type;
+    const resolvedDiscountValue = discountValue !== undefined ? discountValue : current.discount_value;
+    const discount = resolvedDiscountType ? (Number(resolvedDiscountValue) || 0) : 0;
+    const resolvedNetAmount = (resolvedAmount - discount) + resolvedTaxAmount;
 
-    const result = await query(queryText, [
-      updatedClientName,
-      updatedClientId,
-      updatedPackageName,
-      updatedPackageId,
-      amount !== undefined ? amount : current.amount,
-      date !== undefined ? date : current.date,
+    const resolvedGroupMembers = groupMembers !== undefined ? groupMembers : (current.group_members || []);
+
+    const updResult = await dbClient.query(`
+      UPDATE bookings SET
+        client_name = $1, client_id = $2,
+        package_name = $3, package_id = $4,
+        amount = $5, tax_amount = $6, net_amount = $7,
+        discount_type = $8, discount_value = $9,
+        departure_date = $10, status = $11,
+        agent = $12, guests = $13, group_members = $14,
+        notes = $15, start_date = $16, end_date = $17
+      WHERE id = $18
+      RETURNING *
+    `, [
+      updatedClientName, updatedClientId,
+      updatedPackageName, updatedPackageId,
+      resolvedAmount, resolvedTaxAmount, resolvedNetAmount,
+      resolvedDiscountType, resolvedDiscountValue,
+      date !== undefined ? date : current.departure_date,
       status !== undefined ? status : current.status,
       agent !== undefined ? agent : current.agent,
-      guests !== undefined ? guests : current.guests,
+      newGuestCount, JSON.stringify(resolvedGroupMembers),
       notes !== undefined ? notes : current.notes,
       startDate !== undefined ? startDate : current.start_date,
       endDate !== undefined ? endDate : current.end_date,
@@ -212,108 +283,141 @@ router.put('/:id', async (req, res, next) => {
     // Log update to client logs if client exists
     if (updatedClientId) {
       const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
-      const clientLogsRes = await query('SELECT logs FROM clients WHERE id = $1', [updatedClientId]);
-      const currentLogs = clientLogsRes.rows[0]?.logs || [];
+      const logsRes = await dbClient.query('SELECT logs FROM clients WHERE id = $1', [updatedClientId]);
+      const currentLogs = logsRes.rows[0]?.logs || [];
       const updatedLogs = [
-        { time: timestamp, text: `System: Updated booking details for ${id} (Status: ${status || current.status})` },
+        { time: timestamp, text: `System: Updated booking details for ${id} (Guests: ${newGuestCount}, Status: ${status || current.status})` },
         ...currentLogs
       ];
-      await query('UPDATE clients SET logs = $1, last_contact = $2 WHERE id = $3', [JSON.stringify(updatedLogs), timestamp.split(' ')[0], updatedClientId]);
+      await dbClient.query(
+        'UPDATE clients SET logs = $1, last_contact = $2 WHERE id = $3',
+        [JSON.stringify(updatedLogs), timestamp.split(' ')[0], updatedClientId]
+      );
     }
 
-    res.json(mapBookingToFrontend(result.rows[0]));
+    await dbClient.query('COMMIT');
+    began = false;
+    res.json(mapBookingToFrontend(updResult.rows[0]));
   } catch (error) {
+    if (began) await dbClient.query('ROLLBACK');
     next(error);
+  } finally {
+    dbClient.release();
   }
 });
 
 // DELETE a booking
 router.delete('/:id', async (req, res, next) => {
+  const { id } = req.params;
+
+  let booking;
   try {
-    const { id } = req.params;
     const bookingRes = await query('SELECT * FROM bookings WHERE id = $1', [id]);
     if (bookingRes.rows.length === 0) {
       return res.status(404).json({ error: 'Booking not found' });
     }
-    const booking = bookingRes.rows[0];
+    booking = bookingRes.rows[0];
+  } catch (error) {
+    return next(error);
+  }
 
-    // Decrement slots_booked for the package
+  const guestCount = booking.guests || 1;
+  const dbClient = await getClient();
+  let began = false;
+  try {
+    await dbClient.query('BEGIN');
+    began = true;
+
+    // Decrement slots_booked by guest count
     if (booking.package_id) {
-      await query('UPDATE packages SET slots_booked = GREATEST(0, slots_booked - 1) WHERE id = $1', [booking.package_id]);
+      await dbClient.query(
+        'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+        [guestCount, booking.package_id]
+      );
     }
 
-    await query('DELETE FROM bookings WHERE id = $1', [id]);
+    await dbClient.query('DELETE FROM bookings WHERE id = $1', [id]);
 
     // Log deletion to client logs
     if (booking.client_id) {
       const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
-      const clientLogsRes = await query('SELECT logs FROM clients WHERE id = $1', [booking.client_id]);
-      const currentLogs = clientLogsRes.rows[0]?.logs || [];
+      const logsRes = await dbClient.query('SELECT logs FROM clients WHERE id = $1', [booking.client_id]);
+      const currentLogs = logsRes.rows[0]?.logs || [];
       const updatedLogs = [
-        { time: timestamp, text: `System: Deleted booking ${id} for package "${booking.package_name}"` },
+        { time: timestamp, text: `System: Deleted booking ${id} for package "${booking.package_name}" (had ${guestCount} guests)` },
         ...currentLogs
       ];
-      await query('UPDATE clients SET logs = $1, last_contact = $2 WHERE id = $3', [JSON.stringify(updatedLogs), timestamp.split(' ')[0], booking.client_id]);
+      await dbClient.query(
+        'UPDATE clients SET logs = $1, last_contact = $2 WHERE id = $3',
+        [JSON.stringify(updatedLogs), timestamp.split(' ')[0], booking.client_id]
+      );
     }
 
+    await dbClient.query('COMMIT');
+    began = false;
     res.json({ message: 'Booking deleted successfully', booking: mapBookingToFrontend(booking) });
   } catch (error) {
+    if (began) await dbClient.query('ROLLBACK');
     next(error);
+  } finally {
+    dbClient.release();
   }
 });
 
 // PUBLIC POST booking/inquiry (from Customer Site)
 router.post('/inquiry', async (req, res, next) => {
+  const { name, email, phone, packageId, startDate, endDate, guests, groupMembers, notes } = req.body;
+
+  // Input validation
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  if (!email || !/\S+@\S+\.\S+/.test(email)) {
+    return res.status(400).json({ error: 'A valid email is required' });
+  }
+  if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
+    return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+  }
+  if (!packageId) {
+    return res.status(400).json({ error: 'Package ID is required' });
+  }
+  if (packageId === 'custom-other' && (!req.body.customDestination || !req.body.customDestination.trim())) {
+    return res.status(400).json({ error: 'Custom destination name is required' });
+  }
+  
+  // Date validations
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (!startDate) {
+    return res.status(400).json({ error: 'Start date is required' });
+  }
+  const start = new Date(startDate);
+  if (isNaN(start.getTime())) {
+    return res.status(400).json({ error: 'Invalid start date format' });
+  }
+  if (start < today) {
+    return res.status(400).json({ error: 'Start date cannot be in the past' });
+  }
+  
+  if (!endDate) {
+    return res.status(400).json({ error: 'End date is required' });
+  }
+  const end = new Date(endDate);
+  if (isNaN(end.getTime())) {
+    return res.status(400).json({ error: 'Invalid end date format' });
+  }
+  if (end < start) {
+    return res.status(400).json({ error: 'End date cannot be before start date' });
+  }
+
+  // 1. Fetch package or handle custom destination (reads outside transaction)
+  let packageNameSelected = '';
+  let packageIdSelected = null;
+  let numericAmount = 0;
+  let packageDuration = null;
+  let packageIsBespoke = false;
+
   try {
-    const { name, email, phone, packageId, startDate, endDate, guests, notes } = req.body;
-
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Name is required' });
-    }
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      return res.status(400).json({ error: 'A valid email is required' });
-    }
-    if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
-      return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
-    }
-    if (!packageId) {
-      return res.status(400).json({ error: 'Package ID is required' });
-    }
-    if (packageId === 'custom-other' && (!req.body.customDestination || !req.body.customDestination.trim())) {
-      return res.status(400).json({ error: 'Custom destination name is required' });
-    }
-    
-    // Date validations
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (!startDate) {
-      return res.status(400).json({ error: 'Start date is required' });
-    }
-    const start = new Date(startDate);
-    if (isNaN(start.getTime())) {
-      return res.status(400).json({ error: 'Invalid start date format' });
-    }
-    if (start < today) {
-      return res.status(400).json({ error: 'Start date cannot be in the past' });
-    }
-    
-    if (!endDate) {
-      return res.status(400).json({ error: 'End date is required' });
-    }
-    const end = new Date(endDate);
-    if (isNaN(end.getTime())) {
-      return res.status(400).json({ error: 'Invalid end date format' });
-    }
-    if (end < start) {
-      return res.status(400).json({ error: 'End date cannot be before start date' });
-    }
-
-    // 1. Fetch package or handle custom destination
-    let packageItem = null;
-    let packageNameSelected = '';
-    let packageIdSelected = null;
-    let formattedAmount = '₹0 (Bespoke Quote)';
-
     const isCustom = packageId.startsWith('custom-');
     if (isCustom) {
       const destName = packageId.replace('custom-', '').replace(/-/g, ' ');
@@ -327,54 +431,111 @@ router.post('/inquiry', async (req, res, next) => {
       if (pkgRes.rows.length === 0) {
         return res.status(404).json({ error: 'Travel package not found' });
       }
-      packageItem = pkgRes.rows[0];
+      const packageItem = pkgRes.rows[0];
       packageNameSelected = packageItem.name;
       packageIdSelected = packageItem.id;
+      packageDuration = packageItem.duration;
+      packageIsBespoke = packageItem.is_bespoke || false;
 
       const guestCount = parseInt(guests) || 1;
-      formattedAmount = `₹${(Number(packageItem.base_price) * guestCount).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+      numericAmount = Number(packageItem.base_price) * guestCount;
+    }
+  } catch (error) {
+    return next(error);
+  }
 
-      // Check available slots
-      if (packageItem.slots_booked >= packageItem.slots_total) {
-        return res.status(400).json({ error: `Error: No available booking slots remaining for ${packageItem.name}.` });
+  const guestCount = parseInt(guests) || 1;
+
+  // Safety net: clamp end_date for standard packages to match their duration
+  if (packageIdSelected && !packageIsBespoke && packageDuration) {
+    const match = String(packageDuration).match(/(\d+)\s*Days?/i);
+    if (match) {
+      const days = parseInt(match[1]);
+      const s = new Date(startDate);
+      if (!isNaN(s.getTime())) {
+        const computed = new Date(s);
+        computed.setDate(computed.getDate() + days - 1);
+        const computedStr = computed.toISOString().split('T')[0];
+        if (endDate !== computedStr) {
+          endDate = computedStr;
+        }
       }
     }
+  }
+  const bookingId = `BK-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+
+  // Build groupMembers array: index 0 = primary contact, then incoming entries
+  let members = Array.isArray(groupMembers) ? groupMembers : [];
+  if (members.length === 0) {
+    // Auto-fill from primary for index 0
+    members = [{ name: name.trim(), email, phone: phone.trim() }];
+    // Pad remaining slots with placeholders
+    for (let i = members.length; i < guestCount; i++) {
+      members.push({ name: `Guest ${i + 1}` });
+    }
+  } else {
+    // Ensure index 0 matches primary contact
+    members[0] = { ...members[0], name: name.trim(), email, phone: phone.trim() };
+    // Ensure array length matches guestCount
+    while (members.length < guestCount) {
+      members.push({ name: `Guest ${members.length + 1}` });
+    }
+  }
+
+  // Check for group discount
+  let discountType = null;
+  let discountValue = 0;
+  let discountPercent = 0;
+  try {
+    const settingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+    if (settingsRes.rows.length > 0) {
+      const settings = settingsRes.rows[0].value;
+      if (settings.group_discount_enabled && guestCount >= (Number(settings.group_discount_threshold) || 10)) {
+        discountPercent = Number(settings.group_discount_percent) || 5;
+        discountType = 'group';
+        discountValue = Math.round(numericAmount * discountPercent / 100 * 100) / 100;
+      }
+    }
+  } catch (error) {
+    // Settings read failure is non-fatal; proceed without discount
+  }
+
+  const taxAmount = numericAmount > 0 ? Math.round(numericAmount * 0.05 * 100) / 100 : 0;
+  const netAmount = numericAmount - discountValue + taxAmount;
+
+  const dbClient = await getClient();
+  let began = false;
+  try {
+    await dbClient.query('BEGIN');
+    began = true;
 
     // 2. Find or create client profile
     let client;
-    const clientSearch = await query('SELECT * FROM clients WHERE email = $1', [email]);
+    const clientSearch = await dbClient.query('SELECT * FROM clients WHERE email = $1', [email]);
     if (clientSearch.rows.length > 0) {
       client = clientSearch.rows[0];
-      // Increment bookings count
-      await query(
+      await dbClient.query(
         'UPDATE clients SET historical_bookings_count = historical_bookings_count + 1, last_contact = $1 WHERE id = $2',
         [new Date().toISOString().split('T')[0], client.id]
       );
     } else {
-      const newClientId = `C-${crypto.randomUUID()}`;
+      const newClientId = `C-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
       const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
       const initialLogs = [{ time: timestamp, text: 'System: Client profile initialized from online inquiry' }];
 
-      const newClientRes = await query(
+      const newClientRes = await dbClient.query(
         `INSERT INTO clients (id, name, email, phone, status, tier, historical_ltv, historical_bookings_count, avatar, preferences, passport, visa, emergency_contact, wallet_balance, notes, last_contact, logs)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          RETURNING *`,
         [
-          newClientId,
-          name,
-          email,
-          phone || '',
-          'Active',
-          'Silver',
-          0,
-          1,
+          newClientId, name, email, phone || '',
+          'Active', 'Silver', 0, 1,
           'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
           JSON.stringify({ airline: 'Standard Carrier', seat: 'Window', room: 'Standard King', dietary: 'None' }),
           JSON.stringify({ number: 'Pending', expires: 'Pending', status: 'Valid' }),
           JSON.stringify({ country: 'Pending', expires: 'Pending', class: 'Tourist' }),
           JSON.stringify({ name: 'Not Listed', phone: 'Not Listed', relation: 'Not Listed' }),
-          '$0.00',
-          'Online inquiry submitted.',
+          0, 'Online inquiry submitted.',
           timestamp.split(' ')[0],
           JSON.stringify(initialLogs)
         ]
@@ -382,54 +543,62 @@ router.post('/inquiry', async (req, res, next) => {
       client = newClientRes.rows[0];
     }
 
-    // 3. Create the booking inquiry
-    // 3. Create the booking inquiry
-    const bookingId = `BK-${crypto.randomUUID()}`;
-    const guestCount = parseInt(guests) || 1;
-
-    const bookingQueryText = `
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, departure_date, status, agent, guests, notes, start_date, end_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *
-    `;
-
-    const bookingRes = await query(bookingQueryText, [
-      bookingId,
-      client.name,
-      client.id,
-      packageNameSelected,
-      packageIdSelected,
-      formattedAmount,
-      startDate || null,
-      'Pending',
-      'Unassigned',
-      guestCount,
-      notes || '',
-      startDate || null,
-      endDate || null
-    ]);
-
-    // 4. Increment package booked slots (only if it's a real package)
+    // 3. Atomic slot increment — consume guestCount slots (only for real packages)
     if (packageIdSelected) {
-      await query('UPDATE packages SET slots_booked = slots_booked + 1 WHERE id = $1', [packageIdSelected]);
+      const slotRes = await dbClient.query(
+        'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+        [guestCount, packageIdSelected]
+      );
+      if (slotRes.rows.length === 0) {
+        await dbClient.query('ROLLBACK');
+        began = false;
+        return res.status(400).json({ error: `Not enough booking slots remaining for ${packageNameSelected}. Requested ${guestCount} slots.` });
+      }
     }
+
+    // 4. Create the booking inquiry
+    const bookingRes = await dbClient.query(`
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      RETURNING *
+    `, [
+      bookingId, client.name, client.id,
+      packageNameSelected, packageIdSelected,
+      numericAmount, taxAmount, netAmount,
+      discountType, discountValue,
+      startDate || null, 'Pending', 'Unassigned',
+      guestCount, JSON.stringify(members), notes || '',
+      startDate || null, endDate || null
+    ]);
 
     // 5. Append system log to client
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const clientLogsRes = await query('SELECT logs FROM clients WHERE id = $1', [client.id]);
-    const currentLogs = clientLogsRes.rows[0]?.logs || [];
+    const logsRes = await dbClient.query('SELECT logs FROM clients WHERE id = $1', [client.id]);
+    const currentLogs = logsRes.rows[0]?.logs || [];
+    let logText = `System: Submitted online inquiry for "${packageNameSelected}" (Booking ID: ${bookingId}, Guests: ${guestCount})`;
+    if (discountType === 'group') {
+      logText += ` — Group discount of ${discountPercent}% applied (₹${discountValue.toLocaleString('en-IN')} off)`;
+    }
     const updatedLogs = [
-      { time: timestamp, text: `System: Submitted online inquiry for "${packageNameSelected}" (Booking ID: ${bookingId}, Guests: ${guestCount})` },
+      { time: timestamp, text: logText },
       ...currentLogs
     ];
-    await query('UPDATE clients SET logs = $1 WHERE id = $2', [JSON.stringify(updatedLogs), client.id]);
+    await dbClient.query('UPDATE clients SET logs = $1 WHERE id = $2', [JSON.stringify(updatedLogs), client.id]);
+
+    await dbClient.query('COMMIT');
+    began = false;
 
     res.status(201).json({
-      message: 'Booking inquiry submitted successfully!',
+      message: discountType === 'group'
+        ? `Booking inquiry submitted successfully! A ${discountPercent}% group discount has been applied.`
+        : 'Booking inquiry submitted successfully!',
       booking: mapBookingToFrontend(bookingRes.rows[0])
     });
   } catch (error) {
+    if (began) await dbClient.query('ROLLBACK');
     next(error);
+  } finally {
+    dbClient.release();
   }
 });
 

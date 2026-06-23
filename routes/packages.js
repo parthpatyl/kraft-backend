@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -9,6 +10,9 @@ export function mapPackageToFrontend(row) {
     name: row.name,
     duration: row.duration,
     basePrice: Number(row.base_price),
+    costPrice: row.cost_price ? Number(row.cost_price) : null,
+    taxRate: row.tax_rate ? Number(row.tax_rate) : 5,
+    taxInclusive: row.tax_inclusive ?? true,
     region: row.region,
     slots: { booked: row.slots_booked, total: row.slots_total },
     trend: row.trend,
@@ -17,13 +21,22 @@ export function mapPackageToFrontend(row) {
     heroImage: row.hero_image,
     cardImage: row.card_image,
     description: row.description,
-    highlights: row.highlights || [],
-    inclusions: row.inclusions || [],
-    exclusions: row.exclusions || [],
-    itinerary: row.itinerary || [],
-    bestMonth: row.best_month || '',
-    ctaBadge: row.cta_badge || ''
+    highlights: row.highlights ?? [],
+    inclusions: row.inclusions ?? [],
+    exclusions: row.exclusions ?? [],
+    itinerary: row.itinerary ?? [],
+    bestMonth: row.best_month ?? '',
+    ctaBadge: row.cta_badge ?? '',
+    isBespoke: row.is_bespoke ?? false
   };
+}
+
+function validatePrice(val, name) {
+  if (val === undefined || val === null) return null;
+  if (typeof val !== 'number' || isNaN(val) || val < 0) {
+    return new Error(`"${name}" must be a non-negative number`);
+  }
+  return null;
 }
 
 // GET all packages
@@ -43,6 +56,9 @@ router.post('/', async (req, res, next) => {
       name,
       duration,
       basePrice,
+      costPrice,
+      taxRate,
+      taxInclusive,
       region,
       slots,
       trend,
@@ -56,16 +72,22 @@ router.post('/', async (req, res, next) => {
       exclusions,
       itinerary,
       bestMonth,
-      ctaBadge
+      ctaBadge,
+      isBespoke
     } = req.body;
 
-    const id = req.body.id || `PKG-${crypto.randomUUID()}`;
+    const err = validatePrice(basePrice, 'basePrice')
+      || validatePrice(costPrice, 'costPrice')
+      || validatePrice(taxRate, 'taxRate');
+    if (err) return res.status(400).json({ error: err.message });
+
+    const id = req.body.id || `PKG-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
     const slots_booked = slots?.booked || 0;
     const slots_total = slots?.total || 10;
 
     const queryText = `
-      INSERT INTO packages (id, name, duration, base_price, region, slots_booked, slots_total, trend, color, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, best_month, cta_badge)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, slots_booked, slots_total, trend, color, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, best_month, cta_badge, is_bespoke)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       RETURNING *
     `;
 
@@ -74,6 +96,9 @@ router.post('/', async (req, res, next) => {
       name,
       duration,
       basePrice || 0,
+      costPrice ?? null,
+      taxRate ?? 5,
+      taxInclusive ?? true,
       region || 'Asia',
       slots_booked,
       slots_total,
@@ -88,7 +113,8 @@ router.post('/', async (req, res, next) => {
       exclusions || [],
       JSON.stringify(itinerary || []),
       bestMonth || '',
-      ctaBadge || ''
+      ctaBadge || '',
+      isBespoke || false
     ]);
 
     res.status(201).json(mapPackageToFrontend(result.rows[0]));
@@ -105,6 +131,9 @@ router.put('/:id', async (req, res, next) => {
       name,
       duration,
       basePrice,
+      costPrice,
+      taxRate,
+      taxInclusive,
       region,
       slots,
       trend,
@@ -118,8 +147,14 @@ router.put('/:id', async (req, res, next) => {
       exclusions,
       itinerary,
       bestMonth,
-      ctaBadge
+      ctaBadge,
+      isBespoke
     } = req.body;
+
+    const err = validatePrice(basePrice, 'basePrice')
+      || validatePrice(costPrice, 'costPrice')
+      || validatePrice(taxRate, 'taxRate');
+    if (err) return res.status(400).json({ error: err.message });
 
     // Build values dynamically or update everything
     const currentPkgRes = await query('SELECT * FROM packages WHERE id = $1', [id]);
@@ -137,22 +172,26 @@ router.put('/:id', async (req, res, next) => {
         name = $1,
         duration = $2,
         base_price = $3,
-        region = $4,
-        slots_booked = $5,
-        slots_total = $6,
-        trend = $7,
-        color = $8,
-        inclusions_selection = $9,
-        hero_image = $10,
-        card_image = $11,
-        description = $12,
-        highlights = $13,
-        inclusions = $14,
-        exclusions = $15,
-        itinerary = $16,
-        best_month = $17,
-        cta_badge = $18
-      WHERE id = $19
+        cost_price = $4,
+        tax_rate = $5,
+        tax_inclusive = $6,
+        region = $7,
+        slots_booked = $8,
+        slots_total = $9,
+        trend = $10,
+        color = $11,
+        inclusions_selection = $12,
+        hero_image = $13,
+        card_image = $14,
+        description = $15,
+        highlights = $16,
+        inclusions = $17,
+        exclusions = $18,
+        itinerary = $19,
+        best_month = $20,
+        cta_badge = $21,
+        is_bespoke = $22
+      WHERE id = $23
       RETURNING *
     `;
 
@@ -160,6 +199,9 @@ router.put('/:id', async (req, res, next) => {
       name !== undefined ? name : current.name,
       duration !== undefined ? duration : current.duration,
       basePrice !== undefined ? basePrice : current.base_price,
+      costPrice !== undefined ? costPrice : current.cost_price,
+      taxRate !== undefined ? taxRate : current.tax_rate,
+      taxInclusive !== undefined ? taxInclusive : current.tax_inclusive,
       region !== undefined ? region : current.region,
       slots_booked,
       slots_total,
@@ -175,6 +217,7 @@ router.put('/:id', async (req, res, next) => {
       itinerary !== undefined ? JSON.stringify(itinerary) : current.itinerary,
       bestMonth !== undefined ? bestMonth : current.best_month,
       ctaBadge !== undefined ? ctaBadge : current.cta_badge,
+      isBespoke !== undefined ? isBespoke : current.is_bespoke,
       id
     ]);
 
