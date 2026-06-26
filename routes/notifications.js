@@ -42,11 +42,23 @@ router.patch('/read-all', async (_req, res, next) => {
   }
 });
 
+router.delete('/clear-all', async (_req, res, next) => {
+  try {
+    await query('DELETE FROM notifications');
+    res.json({ message: 'All notifications cleared' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.patch('/:id/read', async (req, res, next) => {
   try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid notification ID' });
+
     const result = await query(
       'UPDATE notifications SET read = NOT read WHERE id = $1 RETURNING *',
-      [req.params.id]
+      [id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
@@ -57,20 +69,14 @@ router.patch('/:id/read', async (req, res, next) => {
   }
 });
 
-router.delete('/clear-all', async (_req, res, next) => {
-  try {
-    await query('DELETE FROM notifications');
-    res.json({ message: 'All notifications cleared' });
-  } catch (err) {
-    next(err);
-  }
-});
-
 router.delete('/:id', async (req, res, next) => {
   try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid notification ID' });
+
     const result = await query(
       'DELETE FROM notifications WHERE id = $1 RETURNING *',
-      [req.params.id]
+      [id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Notification not found' });
