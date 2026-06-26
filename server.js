@@ -45,7 +45,7 @@ app.use('/api/weather', weatherRouter);
 app.use('/api/notifications', notificationsRouter);
 
 // Basic health check route
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
 
