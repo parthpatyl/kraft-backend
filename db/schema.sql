@@ -20,7 +20,6 @@ CREATE TABLE packages (
     slots_booked INTEGER DEFAULT 0,
     slots_total INTEGER NOT NULL,
     trend VARCHAR(100),
-    color VARCHAR(100),
     inclusions_selection JSONB,
     hero_image TEXT,
     card_image TEXT,
@@ -94,5 +93,26 @@ CREATE TABLE testimonials (
     avatar TEXT,
     rating INTEGER,
     text TEXT,
-    package VARCHAR(255)
+    package VARCHAR(255),
+    images JSONB DEFAULT '[]'::jsonb
+);
+
+-- Users Table (for admin auth)
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'admin',
+    avatar_url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Notifications Table
+CREATE TABLE notifications (
+    id SERIAL PRIMARY KEY,
+    message TEXT NOT NULL,
+    type VARCHAR(20) DEFAULT 'system',
+    read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
+import requireAuth from '../middleware/requireAuth.js';
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST trigger a weather data refresh (called from admin dashboard)
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', requireAuth, async (req, res, next) => {
   try {
     // Check if we have a recent cache
     const existing = await query("SELECT value FROM settings WHERE key = $1", [CACHE_KEY]);

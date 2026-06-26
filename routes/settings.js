@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
+import requireAuth from '../middleware/requireAuth.js';
 
 const router = Router();
 
@@ -10,6 +11,7 @@ router.get('/', async (req, res, next) => {
     const defaultSettings = {
       defaultMarkup: 15,
       defaultAgentSplit: 40,
+      inrToUsdRate: 0,
       agencyName: 'KRAFT YOUR TRIP',
       agencyAddress: '456 Sandstone Ave, Suite 100, San Francisco, CA',
       agencyPhone: '+1 (555) 019-2831',
@@ -58,7 +60,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PUT update settings
-router.put('/', async (req, res, next) => {
+router.put('/', requireAuth, async (req, res, next) => {
   try {
     const newValue = req.body;
 

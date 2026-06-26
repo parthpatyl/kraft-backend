@@ -1,29 +1,42 @@
 import { Router } from 'express';
 import { query, getClient } from '../db/index.js';
 import crypto from 'crypto';
+import requireAuth from '../middleware/requireAuth.js';
 
 const router = Router();
 
-export function mapBookingToFrontend(row) {
+export function mapBookingToFrontend(row, { inrToUsdRate = 0 } = {}) {
+  const amount = Number(row.amount) || 0;
+  const taxAmount = Number(row.tax_amount) || 0;
+  const netAmount = Number(row.net_amount) || 0;
+  const discountValue = Number(row.discount_value) || 0;
+  const rate = inrToUsdRate > 0 ? inrToUsdRate : 0;
+
   return {
     id: row.id,
     client: row.client_name,
     client_id: row.client_id,
     package: row.package_name,
     package_id: row.package_id,
-    amount: Number(row.amount) || 0,
-    taxAmount: Number(row.tax_amount) || 0,
-    netAmount: Number(row.net_amount) || 0,
+    amount,
+    taxAmount,
+    netAmount,
     discountType: row.discount_type || null,
-    discountValue: Number(row.discount_value) || 0,
-    date: formatDateToString(row.date),
+    discountValue,
+    date: formatDateToString(row.departure_date),
     status: row.status,
     agent: row.agent || 'Unassigned',
     guests: row.guests || 1,
     groupMembers: row.group_members || [],
     notes: row.notes || '',
     startDate: row.start_date,
-    endDate: row.end_date
+    endDate: row.end_date,
+    ...(rate ? {
+      usdAmount: Math.round(amount / rate * 100) / 100,
+      usdTaxAmount: Math.round(taxAmount / rate * 100) / 100,
+      usdNetAmount: Math.round(netAmount / rate * 100) / 100,
+      usdDiscountValue: Math.round(discountValue / rate * 100) / 100
+    } : {})
   };
 }
 
@@ -40,17 +53,21 @@ function formatDateToString(dateStr) {
 }
 
 // GET all bookings
-router.get('/', async (req, res, next) => {
+router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const result = await query('SELECT * FROM bookings ORDER BY created_at DESC');
-    res.json(result.rows.map(mapBookingToFrontend));
+    const [result, settingsRes] = await Promise.all([
+      query('SELECT * FROM bookings ORDER BY created_at DESC'),
+      query("SELECT value FROM settings WHERE key = 'agency_settings'")
+    ]);
+    const inrToUsdRate = settingsRes.rows[0]?.value?.inrToUsdRate || 0;
+    res.json(result.rows.map((row) => mapBookingToFrontend(row, { inrToUsdRate })));
   } catch (error) {
     next(error);
   }
 });
 
 // POST create booking (from Admin Dashboard)
-router.post('/', async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   const {
     client,
     package: packageName,
@@ -141,7 +158,11 @@ router.post('/', async (req, res, next) => {
 
     await dbClient.query('COMMIT');
     began = false;
-    res.status(201).json(mapBookingToFrontend(insResult.rows[0]));
+
+    const postSettingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+    const postInrToUsdRate = postSettingsRes.rows[0]?.value?.inrToUsdRate || 0;
+
+    res.status(201).json(mapBookingToFrontend(insResult.rows[0], { inrToUsdRate: postInrToUsdRate }));
   } catch (error) {
     if (began) await dbClient.query('ROLLBACK');
     next(error);
@@ -151,7 +172,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // PUT update a booking (status, agent, amount, dates, guests, etc)
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireAuth, async (req, res, next) => {
   const { id } = req.params;
   const {
     client,
@@ -270,13 +291,13 @@ router.put('/:id', async (req, res, next) => {
       updatedPackageName, updatedPackageId,
       resolvedAmount, resolvedTaxAmount, resolvedNetAmount,
       resolvedDiscountType, resolvedDiscountValue,
-      date !== undefined ? date : current.departure_date,
+      (date && date.trim() !== '') ? date : current.departure_date,
       status !== undefined ? status : current.status,
       agent !== undefined ? agent : current.agent,
       newGuestCount, JSON.stringify(resolvedGroupMembers),
       notes !== undefined ? notes : current.notes,
-      startDate !== undefined ? startDate : current.start_date,
-      endDate !== undefined ? endDate : current.end_date,
+      startDate !== undefined ? (startDate || null) : current.start_date,
+      endDate !== undefined ? (endDate || null) : current.end_date,
       id
     ]);
 
@@ -297,7 +318,11 @@ router.put('/:id', async (req, res, next) => {
 
     await dbClient.query('COMMIT');
     began = false;
-    res.json(mapBookingToFrontend(updResult.rows[0]));
+
+    const putSettingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+    const putInrToUsdRate = putSettingsRes.rows[0]?.value?.inrToUsdRate || 0;
+
+    res.json(mapBookingToFrontend(updResult.rows[0], { inrToUsdRate: putInrToUsdRate }));
   } catch (error) {
     if (began) await dbClient.query('ROLLBACK');
     next(error);
@@ -307,7 +332,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // DELETE a booking
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireAuth, async (req, res, next) => {
   const { id } = req.params;
 
   let booking;
@@ -355,7 +380,11 @@ router.delete('/:id', async (req, res, next) => {
 
     await dbClient.query('COMMIT');
     began = false;
-    res.json({ message: 'Booking deleted successfully', booking: mapBookingToFrontend(booking) });
+
+    const delSettingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+    const delInrToUsdRate = delSettingsRes.rows[0]?.value?.inrToUsdRate || 0;
+
+    res.json({ message: 'Booking deleted successfully', booking: mapBookingToFrontend(booking, { inrToUsdRate: delInrToUsdRate }) });
   } catch (error) {
     if (began) await dbClient.query('ROLLBACK');
     next(error);
@@ -372,11 +401,14 @@ router.post('/inquiry', async (req, res, next) => {
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name is required' });
   }
+  if (!/^[a-zA-Z\s]+$/.test(name.trim())) {
+    return res.status(400).json({ error: 'Name should only contain letters and spaces' });
+  }
   if (!email || !/\S+@\S+\.\S+/.test(email)) {
     return res.status(400).json({ error: 'A valid email is required' });
   }
-  if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
-    return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+  if (!phone || !/^\+[1-9]\d{6,19}$/.test(phone.trim())) {
+    return res.status(400).json({ error: 'A valid phone number is required (country code + at least 7 digits)' });
   }
   if (!packageId) {
     return res.status(400).json({ error: 'Package ID is required' });
@@ -416,6 +448,7 @@ router.post('/inquiry', async (req, res, next) => {
   let numericAmount = 0;
   let packageDuration = null;
   let packageIsBespoke = false;
+  let packageTaxRate = null;
 
   try {
     const isCustom = packageId.startsWith('custom-');
@@ -439,6 +472,7 @@ router.post('/inquiry', async (req, res, next) => {
 
       const guestCount = parseInt(guests) || 1;
       numericAmount = Number(packageItem.base_price) * guestCount;
+      packageTaxRate = packageItem.tax_rate !== null ? Number(packageItem.tax_rate) : null;
     }
   } catch (error) {
     return next(error);
@@ -483,24 +517,22 @@ router.post('/inquiry', async (req, res, next) => {
   }
 
   // Check for group discount
+  const inquirySettingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+  const inquirySettings = inquirySettingsRes.rows[0]?.value || {};
+
   let discountType = null;
   let discountValue = 0;
   let discountPercent = 0;
-  try {
-    const settingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
-    if (settingsRes.rows.length > 0) {
-      const settings = settingsRes.rows[0].value;
-      if (settings.group_discount_enabled && guestCount >= (Number(settings.group_discount_threshold) || 10)) {
-        discountPercent = Number(settings.group_discount_percent) || 5;
-        discountType = 'group';
-        discountValue = Math.round(numericAmount * discountPercent / 100 * 100) / 100;
-      }
-    }
-  } catch (error) {
-    // Settings read failure is non-fatal; proceed without discount
+  if (inquirySettings.group_discount_enabled && guestCount >= (Number(inquirySettings.group_discount_threshold) || 10)) {
+    discountPercent = Number(inquirySettings.group_discount_percent) || 5;
+    discountType = 'group';
+    discountValue = Math.round(numericAmount * discountPercent / 100 * 100) / 100;
   }
 
-  const taxAmount = numericAmount > 0 ? Math.round(numericAmount * 0.05 * 100) / 100 : 0;
+  const inrToUsdRate = inquirySettings.inrToUsdRate || 0;
+
+  const effectiveTaxRate = packageTaxRate || 0;
+  const taxAmount = numericAmount > 0 && effectiveTaxRate > 0 ? Math.round(numericAmount * effectiveTaxRate / 100 * 100) / 100 : 0;
   const netAmount = numericAmount - discountValue + taxAmount;
 
   const dbClient = await getClient();
@@ -592,7 +624,7 @@ router.post('/inquiry', async (req, res, next) => {
       message: discountType === 'group'
         ? `Booking inquiry submitted successfully! A ${discountPercent}% group discount has been applied.`
         : 'Booking inquiry submitted successfully!',
-      booking: mapBookingToFrontend(bookingRes.rows[0])
+      booking: mapBookingToFrontend(bookingRes.rows[0], { inrToUsdRate })
     });
   } catch (error) {
     if (began) await dbClient.query('ROLLBACK');
