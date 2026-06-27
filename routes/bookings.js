@@ -44,9 +44,9 @@ function formatDateToString(dateStr) {
   if (!dateStr) return '';
   const dateObj = new Date(dateStr);
   if (isNaN(dateObj.getTime())) return dateStr;
-  return dateObj.toLocaleDateString('en-US', {
-    month: 'short',
+  return dateObj.toLocaleDateString('en-GB', {
     day: '2-digit',
+    month: 'short',
     year: 'numeric',
     timeZone: 'UTC'
   });
@@ -562,7 +562,7 @@ router.post('/inquiry', async (req, res, next) => {
         [
           newClientId, name, email, phone || '',
           'Active', 'Silver', 0, 1,
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+          '/assets/default-avatar.png',
           JSON.stringify({ airline: 'Standard Carrier', seat: 'Window', room: 'Standard King', dietary: 'None' }),
           JSON.stringify({ number: 'Pending', expires: 'Pending', status: 'Valid' }),
           JSON.stringify({ country: 'Pending', expires: 'Pending', class: 'Tourist' }),

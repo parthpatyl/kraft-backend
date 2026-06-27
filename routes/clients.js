@@ -114,7 +114,7 @@ router.post('/', async (req, res, next) => {
       tier || 'Silver',
       historicalLtv || 0,
       historicalBookingsCount || 0,
-      avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+      avatar || '/assets/default-avatar.png',
       JSON.stringify(preferences || { airline: 'Standard Carrier', seat: 'Window', room: 'Standard King', dietary: 'None' }),
       JSON.stringify(passport || { number: 'Pending', expires: 'Pending', status: 'Valid' }),
       JSON.stringify(visa || { country: 'Pending', expires: 'Pending', class: 'Tourist' }),

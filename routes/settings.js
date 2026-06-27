@@ -31,7 +31,7 @@ router.get('/', async (req, res, next) => {
           id: '1',
           title: 'Maldives Paradise Escape',
           subtitle: 'Book a luxury 5-day overwater villa stay and receive a complimentary couples spa treatment.',
-          imageUrl: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&w=1000&q=80',
+          imageUrl: '/assets/unsplash-maldives.jpg',
           buttonText: 'View Packages',
           targetPage: 'destinations'
         },
@@ -39,7 +39,7 @@ router.get('/', async (req, res, next) => {
           id: '2',
           title: 'Swiss Alps Hiking Adventure',
           subtitle: 'Save 15% on summer alpine trekking guides and luxury chalet lodging.',
-          imageUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80',
+          imageUrl: '/assets/unsplash-swiss-alps.jpg',
           buttonText: 'Inquire Now',
           targetPage: 'booking'
         }
