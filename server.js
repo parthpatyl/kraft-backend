@@ -14,6 +14,8 @@ import uploadRouter from './routes/upload.js';
 import weatherRouter from './routes/weather.js';
 import authRouter from './routes/auth.js';
 import notificationsRouter from './routes/notifications.js';
+import usersRouter from './routes/users.js';
+import approvalsRouter from './routes/approvals.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,13 +38,15 @@ app.use('/api/auth', authRouter);
 
 // Register API routes and apply authentication middleware selectively
 app.use('/api/packages', packagesRouter);
-app.use('/api/clients', requireAuth, clientsRouter);
+app.use('/api/clients', clientsRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/testimonials', testimonialsRouter);
 app.use('/api/upload', requireAuth, uploadRouter);
 app.use('/api/weather', weatherRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/approvals', approvalsRouter);
 
 // Basic health check route
 app.get('/api/health', (req, res) => {

@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { query, getClient } from '../db/index.js';
 import crypto from 'crypto';
 import requireAuth from '../middleware/requireAuth.js';
+import { requirePermission } from '../middleware/requireRole.js';
+import { roleHas } from '../middleware/permissions.js';
+import { notifyAll } from '../middleware/notify.js';
 
 const router = Router();
 
@@ -53,7 +56,7 @@ function formatDateToString(dateStr) {
 }
 
 // GET all bookings
-router.get('/', requireAuth, async (req, res, next) => {
+router.get('/', requirePermission('read:bookings'), async (req, res, next) => {
   try {
     const [result, settingsRes] = await Promise.all([
       query('SELECT * FROM bookings ORDER BY created_at DESC'),
@@ -67,7 +70,7 @@ router.get('/', requireAuth, async (req, res, next) => {
 });
 
 // POST create booking (from Admin Dashboard)
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requirePermission('write:bookings'), async (req, res, next) => {
   const {
     client,
     package: packageName,
@@ -201,6 +204,57 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     return next(error);
   }
 
+  // Pricing change detection — operations changes need approval
+  const PRICING_CHANGE_FIELDS = ['amount', 'discountType', 'discountValue'];
+  const hasPricingChange = PRICING_CHANGE_FIELDS.some(f => req.body[f] !== undefined);
+  if (hasPricingChange && !roleHas(req.user.role, 'write:bookings.pricing')) {
+    const after = {};
+    PRICING_CHANGE_FIELDS.forEach(f => {
+      if (req.body[f] !== undefined) after[f] = req.body[f];
+    });
+    const before = {};
+    PRICING_CHANGE_FIELDS.forEach(f => {
+      before[f] = current[f === 'discountType' ? 'discount_type' : f] || 0;
+    });
+    if (after.amount !== undefined) {
+      after.taxAmount = Math.round(Number(after.amount) * 0.05 * 100) / 100;
+      after.netAmount = (Number(after.amount) - (Number(after.discountValue) || 0)) + after.taxAmount;
+    }
+
+    const approvalPayload = {
+      kind: 'change:booking.pricing',
+      entityId: id,
+      before,
+      after,
+      note: req.body.notes || ''
+    };
+
+    const aprId = `APR-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+    await query(
+      `INSERT INTO approvals (id, action, entity_type, entity_id, requested_by, payload, reason)
+       VALUES ($1, 'change:booking.pricing', 'booking', $2, $3, $4, $5)`,
+      [aprId, id, req.user.id, JSON.stringify(approvalPayload), 'Pricing change requires admin approval']
+    );
+
+    // Notify admins
+    const adminUsers = await query("SELECT id, email, name FROM users WHERE role = 'admin'");
+    for (const admin of adminUsers.rows) {
+      await notifyAll({
+        userId: admin.id,
+        userEmail: admin.email,
+        message: `Operations user requested pricing change on booking ${id}. Review in Approvals panel.`,
+        subject: `Approval Needed — Booking ${id} Pricing Change`,
+        link: 'tab:approvals?status=pending'
+      });
+    }
+
+    return res.status(202).json({
+      approvalPending: true,
+      approvalId: aprId,
+      message: 'Pricing change requires admin approval. An approval request has been submitted.'
+    });
+  }
+
   const dbClient = await getClient();
   let began = false;
   try {
@@ -332,8 +386,66 @@ router.put('/:id', requireAuth, async (req, res, next) => {
 });
 
 // DELETE a booking
-router.delete('/:id', requireAuth, async (req, res, next) => {
+router.delete('/:id', requirePermission('write:bookings'), async (req, res, next) => {
   const { id } = req.params;
+
+  // Operations cannot delete directly — must go through approval
+  if (!roleHas(req.user.role, 'delete:bookings')) {
+    let booking;
+    try {
+      const bookingRes = await query('SELECT * FROM bookings WHERE id = $1', [id]);
+      if (bookingRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+      booking = bookingRes.rows[0];
+    } catch (error) {
+      return next(error);
+    }
+
+    const approvalPayload = {
+      kind: 'delete:booking',
+      entityId: id,
+      bookingId: id,
+      clientId: booking.client_id,
+      packageId: booking.package_id,
+      guests: booking.guests || 1,
+      packageName: booking.package_name,
+      clientName: booking.client_name,
+      snapshot: {
+        id: booking.id,
+        client_id: booking.client_id,
+        package_id: booking.package_id,
+        guests: booking.guests || 1,
+        package_name: booking.package_name,
+        client_name: booking.client_name
+      }
+    };
+
+    const aprId = `APR-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+    await query(
+      `INSERT INTO approvals (id, action, entity_type, entity_id, requested_by, payload, reason)
+       VALUES ($1, 'delete:booking', 'booking', $2, $3, $4, $5)`,
+      [aprId, id, req.user.id, JSON.stringify(approvalPayload), 'Booking deletion requires admin approval']
+    );
+
+    // Notify admins
+    const adminUsers = await query("SELECT id, email, name FROM users WHERE role = 'admin'");
+    for (const admin of adminUsers.rows) {
+      await notifyAll({
+        userId: admin.id,
+        userEmail: admin.email,
+        message: `Operations user requested deletion of booking ${id} (${booking.package_name}). Review in Approvals panel.`,
+        subject: `Approval Needed — Booking ${id} Deletion`,
+        link: 'tab:approvals?status=pending'
+      });
+    }
+
+    return res.status(202).json({
+      approvalPending: true,
+      approvalId: aprId,
+      message: 'Booking deletion requires admin approval. An approval request has been submitted.'
+    });
+  }
 
   let booking;
   try {

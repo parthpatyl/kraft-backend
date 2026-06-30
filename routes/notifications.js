@@ -6,10 +6,11 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', async (_req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const result = await query(
-      'SELECT * FROM notifications ORDER BY created_at DESC LIMIT 50'
+      'SELECT * FROM notifications WHERE user_id IS NULL OR user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [req.user.id]
     );
     res.json(result.rows);
   } catch (err) {
@@ -19,13 +20,14 @@ router.get('/', async (_req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { message, type } = req.body;
+    const { message, type, link } = req.body;
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
+    const linkType = link ? (link.includes(':') ? link.split(':')[0] : null) : null;
     const result = await query(
-      'INSERT INTO notifications (message, type) VALUES ($1, $2) RETURNING *',
-      [message, type || 'system']
+      'INSERT INTO notifications (message, type, link_url, link_type) VALUES ($1, $2, $3, $4) RETURNING *',
+      [message, type || 'system', link || null, linkType]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -33,18 +35,18 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.patch('/read-all', async (_req, res, next) => {
+router.patch('/read-all', async (req, res, next) => {
   try {
-    await query('UPDATE notifications SET read = TRUE WHERE read = FALSE');
+    await query('UPDATE notifications SET read = TRUE WHERE read = FALSE AND (user_id IS NULL OR user_id = $1)', [req.user.id]);
     res.json({ message: 'All marked as read' });
   } catch (err) {
     next(err);
   }
 });
 
-router.delete('/clear-all', async (_req, res, next) => {
+router.delete('/clear-all', async (req, res, next) => {
   try {
-    await query('DELETE FROM notifications');
+    await query('DELETE FROM notifications WHERE user_id = $1', [req.user.id]);
     res.json({ message: 'All notifications cleared' });
   } catch (err) {
     next(err);

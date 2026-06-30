@@ -113,6 +113,10 @@ export default pool;
     `)
   );
 
+  await migrate('users: last_active_at', () =>
+    pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`)
+  );
+
   await migrate('notifications: create table', () =>
     pool.query(`
       CREATE TABLE IF NOT EXISTS notifications (
@@ -120,9 +124,48 @@ export default pool;
         message TEXT NOT NULL,
         type VARCHAR(20) DEFAULT 'system',
         read BOOLEAN DEFAULT FALSE,
+        user_id INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `)
+  );
+
+  await migrate('notifications: user_id column', () =>
+    pool.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_id INTEGER`)
+  );
+
+  await migrate('notifications: link columns', () =>
+    pool.query(`
+      ALTER TABLE notifications
+        ADD COLUMN IF NOT EXISTS link_url TEXT,
+        ADD COLUMN IF NOT EXISTS link_type VARCHAR(20)
+    `)
+  );
+
+  await migrate('approvals: create table', () =>
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS approvals (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL,
+        requested_by INTEGER NOT NULL,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        payload JSONB NOT NULL,
+        reason TEXT,
+        status TEXT DEFAULT 'pending',
+        reviewed_by INTEGER,
+        reviewed_at TIMESTAMP,
+        reviewer_note TEXT,
+        executed_at TIMESTAMP,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+  );
+
+  await migrate('approvals: index', () =>
+    pool.query(`CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status) WHERE status = 'pending'`)
   );
 
   if (ok) {

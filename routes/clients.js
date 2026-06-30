@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
+import { requirePermission } from '../middleware/requireRole.js';
+import { roleHas } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -26,7 +28,7 @@ export function mapClientToFrontend(row) {
 }
 
 // GET all clients
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('read:clients'), async (req, res, next) => {
   try {
     const result = await query('SELECT * FROM clients ORDER BY created_at DESC');
     res.json(result.rows.map(mapClientToFrontend));
@@ -36,7 +38,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST a new client
-router.post('/', async (req, res, next) => {
+router.post('/', requirePermission('write:clients.profile'), async (req, res, next) => {
   try {
     const {
       name,
@@ -132,7 +134,13 @@ router.post('/', async (req, res, next) => {
 });
 
 // PUT update a client
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requirePermission('write:clients.profile'), async (req, res, next) => {
+  // Financial fields gated separately
+  const financialFields = ['walletBalance', 'historicalLtv', 'tier'];
+  const hasFinancialChange = financialFields.some(f => req.body[f] !== undefined);
+  if (hasFinancialChange && !roleHas(req.user.role, 'write:clients.financials')) {
+    return res.status(403).json({ error: 'Insufficient permissions to modify client financial fields' });
+  }
   try {
     const { id } = req.params;
     const {
@@ -245,7 +253,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // POST append log note to client
-router.post('/:id/logs', async (req, res, next) => {
+router.post('/:id/logs', requirePermission('write:clients.profile'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { text } = req.body;
@@ -276,7 +284,7 @@ router.post('/:id/logs', async (req, res, next) => {
 });
 
 // DELETE a client
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requirePermission('delete:clients'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await query('DELETE FROM clients WHERE id = $1 RETURNING *', [id]);

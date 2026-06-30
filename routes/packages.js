@@ -2,23 +2,24 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import requireAuth from '../middleware/requireAuth.js';
+import { requirePermission } from '../middleware/requireRole.js';
+import { roleHas } from '../middleware/permissions.js';
+import { notifyAll } from '../middleware/notify.js';
 
 const router = Router();
 
-function tryDecodeAdmin(req) {
+function tryDecodeUser(req) {
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) return false;
+  if (!header || !header.startsWith('Bearer ')) return null;
   const token = header.slice(7);
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
-    return true;
+    return jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    return false;
+    return null;
   }
 }
 
-function mapPackageToFrontend(row, { admin = false, inrToUsdRate = 0 } = {}) {
+function mapPackageToFrontend(row, { admin = false, financials = false, inrToUsdRate = 0 } = {}) {
   const price = Number(row.base_price);
   const costPrice = row.cost_price ? Number(row.cost_price) : null;
   const taxRate = row.tax_rate !== null && row.tax_rate !== undefined ? Number(row.tax_rate) : null;
@@ -47,7 +48,7 @@ function mapPackageToFrontend(row, { admin = false, inrToUsdRate = 0 } = {}) {
 
   const rate = inrToUsdRate > 0 ? inrToUsdRate : 0;
 
-  if (admin) {
+  if (financials) {
     return {
       ...base,
       basePrice: price,
@@ -56,6 +57,15 @@ function mapPackageToFrontend(row, { admin = false, inrToUsdRate = 0 } = {}) {
         usdBasePrice: Math.round(price / rate * 100) / 100,
         usdCostPrice: costPrice ? Math.round(costPrice / rate * 100) / 100 : null
       } : {})
+    };
+  }
+
+  if (admin) {
+    return {
+      ...base,
+      basePrice: price,
+      costPrice,
+      ...(rate ? { usdBasePrice: Math.round(price / rate * 100) / 100 } : {})
     };
   }
 
@@ -77,20 +87,29 @@ function validatePrice(val, name) {
 // GET all packages
 router.get('/', async (req, res, next) => {
   try {
-    const admin = tryDecodeAdmin(req);
+    const user = tryDecodeUser(req);
+    const isAdmin = !!user;
+    const canViewFinancials = user ? roleHas(user.role, 'read:financials') : false;
+
     const [pkgResult, settingsResult] = await Promise.all([
       query('SELECT * FROM packages ORDER BY created_at DESC'),
       query("SELECT value FROM settings WHERE key = 'agency_settings'")
     ]);
     const inrToUsdRate = settingsResult.rows[0]?.value?.inrToUsdRate || 0;
-    res.json(pkgResult.rows.map((row) => mapPackageToFrontend(row, { admin, inrToUsdRate })));
+    res.json(pkgResult.rows.map((row) =>
+      mapPackageToFrontend(row, {
+        admin: isAdmin,
+        financials: canViewFinancials,
+        inrToUsdRate
+      })
+    ));
   } catch (error) {
     next(error);
   }
 });
 
 // POST a new package
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requirePermission('create:packages'), async (req, res, next) => {
   try {
     const {
       name,
@@ -158,14 +177,14 @@ router.post('/', requireAuth, async (req, res, next) => {
       isBespoke ?? false
     ]);
 
-    res.status(201).json(mapPackageToFrontend(result.rows[0], { admin: true, inrToUsdRate }));
+    res.status(201).json(mapPackageToFrontend(result.rows[0], { admin: true, financials: true, inrToUsdRate }));
   } catch (error) {
     next(error);
   }
 });
 
 // PUT update a package
-router.put('/:id', requireAuth, async (req, res, next) => {
+router.put('/:id', requirePermission('write:packages'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const {
@@ -202,6 +221,59 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     }
 
     const current = currentPkgRes.rows[0];
+
+    // Pricing change detection — operations changes need approval
+    // Skip null values (unpopulated form fields sent as null by frontend)
+    const PRICING_FIELDS = ['basePrice', 'costPrice', 'taxRate'];
+    const dbCol = (f) => f === 'basePrice' ? 'base_price' : f === 'costPrice' ? 'cost_price' : 'tax_rate';
+    const hasPricingChange = PRICING_FIELDS.some(f =>
+      req.body[f] !== undefined && req.body[f] !== null
+      && Number(req.body[f]) !== Number(current[dbCol(f)])
+    );
+    if (hasPricingChange && !roleHas(req.user.role, 'write:packages.pricing')) {
+      const after = {};
+      const before = {};
+      PRICING_FIELDS.forEach(f => {
+        before[f] = current[dbCol(f)];
+        if (req.body[f] !== undefined && req.body[f] !== null) {
+          after[f] = req.body[f];
+        } else {
+          after[f] = current[dbCol(f)];
+        }
+      });
+
+      const approvalPayload = {
+        kind: 'change:package.pricing',
+        entityId: id,
+        before,
+        after,
+        note: req.body.notes || ''
+      };
+
+      const aprId = `APR-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+      await query(
+        `INSERT INTO approvals (id, action, entity_type, entity_id, requested_by, payload, reason)
+         VALUES ($1, 'change:package.pricing', 'package', $2, $3, $4, $5)`,
+        [aprId, id, req.user.id, JSON.stringify(approvalPayload), 'Pricing change requires admin approval']
+      );
+
+      const adminUsers = await query("SELECT id, email, name FROM users WHERE role = 'admin'");
+      for (const admin of adminUsers.rows) {
+        await notifyAll({
+          userId: admin.id,
+          userEmail: admin.email,
+          message: `Operations user requested pricing change on package ${id}. Review in Approvals panel.`,
+          subject: `Approval Needed — Package ${id} Pricing Change`,
+          link: 'tab:approvals?status=pending'
+        });
+      }
+
+      return res.status(202).json({
+        approvalPending: true,
+        approvalId: aprId,
+        message: 'Pricing change requires admin approval. An approval request has been submitted.'
+      });
+    }
 
     const settingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
     const inrToUsdRate = settingsRes.rows[0]?.value?.inrToUsdRate || 0;
@@ -240,35 +312,36 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       name !== undefined ? name : current.name,
       duration !== undefined ? duration : current.duration,
       basePrice !== undefined ? basePrice : current.base_price,
-      costPrice !== undefined ? costPrice : current.cost_price,
-      taxRate !== undefined ? taxRate : current.tax_rate,
+      costPrice != null ? costPrice : current.cost_price,
+      taxRate != null ? taxRate : current.tax_rate,
       taxInclusive !== undefined ? taxInclusive : current.tax_inclusive,
       region !== undefined ? region : current.region,
       slots_booked,
       slots_total,
       trend !== undefined ? trend : current.trend,
-      inclusionsSelection !== undefined ? JSON.stringify(inclusionsSelection) : current.inclusions_selection,
+      inclusionsSelection !== undefined ? JSON.stringify(inclusionsSelection) : (current.inclusions_selection ? JSON.stringify(current.inclusions_selection) : null),
       heroImage !== undefined ? heroImage : current.hero_image,
       cardImage !== undefined ? cardImage : current.card_image,
       description !== undefined ? description : current.description,
       highlights !== undefined ? highlights : current.highlights,
       inclusions !== undefined ? inclusions : current.inclusions,
       exclusions !== undefined ? exclusions : current.exclusions,
-      itinerary !== undefined ? JSON.stringify(itinerary) : current.itinerary,
+      itinerary !== undefined ? JSON.stringify(itinerary) : (current.itinerary ? JSON.stringify(current.itinerary) : null),
       bestMonth !== undefined ? bestMonth : current.best_month,
       ctaBadge !== undefined ? ctaBadge : current.cta_badge,
       isBespoke !== undefined ? isBespoke : current.is_bespoke,
       id
     ]);
 
-    res.json(mapPackageToFrontend(result.rows[0], { admin: true, inrToUsdRate }));
+    res.json(mapPackageToFrontend(result.rows[0], { admin: true, financials: true, inrToUsdRate }));
   } catch (error) {
     next(error);
   }
 });
 
 // DELETE a package
-router.delete('/:id', requireAuth, async (req, res, next) => {
+// Only admin can delete packages
+router.delete('/:id', requirePermission('delete:packages'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const [result, settingsRes] = await Promise.all([
@@ -279,7 +352,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: 'Package not found' });
     }
     const inrToUsdRate = settingsRes.rows[0]?.value?.inrToUsdRate || 0;
-    res.json({ message: 'Package deleted successfully', package: mapPackageToFrontend(result.rows[0], { admin: true, inrToUsdRate }) });
+    res.json({ message: 'Package deleted successfully', package: mapPackageToFrontend(result.rows[0], { admin: true, financials: true, inrToUsdRate }) });
   } catch (error) {
     next(error);
   }

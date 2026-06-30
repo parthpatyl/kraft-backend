@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
 import requireAuth from '../middleware/requireAuth.js';
+import { requirePermission } from '../middleware/requireRole.js';
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST create a testimonial
-router.post('/', requireAuth, async (req, res, next) => {
+router.post('/', requirePermission('write:testimonials'), async (req, res, next) => {
   try {
     const { name, location, avatar, rating, text, images, package: pkg } = req.body;
     if (!name || !name.trim()) {
@@ -48,7 +49,7 @@ router.post('/', requireAuth, async (req, res, next) => {
 });
 
 // PUT update a testimonial
-router.put('/:id', requireAuth, async (req, res, next) => {
+router.put('/:id', requirePermission('write:testimonials'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { name, location, avatar, rating, text, images, package: pkg } = req.body;
@@ -94,7 +95,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
 });
 
 // DELETE a testimonial
-router.delete('/:id', requireAuth, async (req, res, next) => {
+router.delete('/:id', requirePermission('write:testimonials'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const result = await query('DELETE FROM testimonials WHERE id = $1 RETURNING *', [id]);

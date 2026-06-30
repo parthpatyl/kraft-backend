@@ -105,6 +105,7 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'admin',
     avatar_url TEXT,
+    last_active_at TIMESTAMPTZ,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -114,5 +115,29 @@ CREATE TABLE notifications (
     message TEXT NOT NULL,
     type VARCHAR(20) DEFAULT 'system',
     read BOOLEAN DEFAULT FALSE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    link_url TEXT,
+    link_type VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Approvals Table (for operations actions needing admin sign-off)
+CREATE TABLE approvals (
+    id TEXT PRIMARY KEY,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payload JSONB NOT NULL,
+    reason TEXT,
+    status TEXT DEFAULT 'pending',
+    reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP,
+    reviewer_note TEXT,
+    executed_at TIMESTAMP,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_approvals_status ON approvals(status) WHERE status = 'pending';

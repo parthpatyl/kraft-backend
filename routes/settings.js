@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
-import requireAuth from '../middleware/requireAuth.js';
+import { requirePermission } from '../middleware/requireRole.js';
+import { roleHas } from '../middleware/permissions.js';
 
 const router = Router();
 
 // GET settings
-router.get('/', async (req, res, next) => {
+router.get('/', requirePermission('read:settings'), async (req, res, next) => {
   try {
     const result = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
     const defaultSettings = {
@@ -53,6 +54,18 @@ router.get('/', async (req, res, next) => {
     if (!merged.specialOffers) {
       merged.specialOffers = defaultSettings.specialOffers;
     }
+
+    // Redact financial/API config from non-financial roles
+    if (!roleHas(req.user.role, 'read:financials')) {
+      delete merged.permissions;
+      delete merged.apis;
+      delete merged.defaultMarkup;
+      delete merged.defaultAgentSplit;
+      delete merged.inrToUsdRate;
+      delete merged.rules;
+      delete merged.smtp;
+    }
+
     res.json(merged);
   } catch (error) {
     next(error);
@@ -60,7 +73,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PUT update settings
-router.put('/', requireAuth, async (req, res, next) => {
+router.put('/', requirePermission('write:settings'), async (req, res, next) => {
   try {
     const newValue = req.body;
 
