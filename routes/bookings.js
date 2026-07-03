@@ -34,6 +34,8 @@ export function mapBookingToFrontend(row, { inrToUsdRate = 0 } = {}) {
     notes: row.notes || '',
     startDate: row.start_date,
     endDate: row.end_date,
+    progress: row.progress || { quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false },
+    specialDirectives: row.special_directives || [],
     ...(rate ? {
       usdAmount: Math.round(amount / rate * 100) / 100,
       usdTaxAmount: Math.round(taxAmount / rate * 100) / 100,
@@ -82,7 +84,9 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
     groupMembers,
     notes,
     startDate,
-    endDate
+    endDate,
+    progress,
+    specialDirectives
   } = req.body;
 
   const id = req.body.id || `BK-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
@@ -133,15 +137,17 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
     }
 
     const insResult = await dbClient.query(`
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, special_directives)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *
     `, [
       id, client, clientId, packageName, packageId,
       numericAmount, taxAmount, netAmount,
       date || null, status || 'Pending', agent || 'Unassigned',
       guestCount, JSON.stringify(members), notes || '',
-      startDate || null, endDate || null
+      startDate || null, endDate || null,
+      JSON.stringify(progress || { quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false }),
+      JSON.stringify(specialDirectives || [])
     ]);
 
     // Log to client logs
@@ -190,7 +196,9 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     groupMembers,
     notes,
     startDate,
-    endDate
+    endDate,
+    progress,
+    specialDirectives
   } = req.body;
 
   let current;
@@ -328,6 +336,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
     const resolvedNetAmount = (resolvedAmount - discount) + resolvedTaxAmount;
 
     const resolvedGroupMembers = groupMembers !== undefined ? groupMembers : (current.group_members || []);
+    const resolvedSpecialDirectives = specialDirectives !== undefined ? specialDirectives : (current.special_directives || []);
 
     const updResult = await dbClient.query(`
       UPDATE bookings SET
@@ -337,8 +346,9 @@ router.put('/:id', requireAuth, async (req, res, next) => {
         discount_type = $8, discount_value = $9,
         departure_date = $10, status = $11,
         agent = $12, guests = $13, group_members = $14,
-        notes = $15, start_date = $16, end_date = $17
-      WHERE id = $18
+        notes = $15, start_date = $16, end_date = $17,
+        progress = $18, special_directives = $19
+      WHERE id = $20
       RETURNING *
     `, [
       updatedClientName, updatedClientId,
@@ -352,6 +362,8 @@ router.put('/:id', requireAuth, async (req, res, next) => {
       notes !== undefined ? notes : current.notes,
       startDate !== undefined ? (startDate || null) : current.start_date,
       endDate !== undefined ? (endDate || null) : current.end_date,
+      progress !== undefined ? JSON.stringify(progress) : (current.progress ? JSON.stringify(current.progress) : null),
+      JSON.stringify(resolvedSpecialDirectives),
       id
     ]);
 
@@ -507,7 +519,7 @@ router.delete('/:id', requirePermission('write:bookings'), async (req, res, next
 
 // PUBLIC POST booking/inquiry (from Customer Site)
 router.post('/inquiry', async (req, res, next) => {
-  const { name, email, phone, packageId, startDate, endDate, guests, groupMembers, notes } = req.body;
+  let { name, email, phone, packageId, startDate, endDate, guests, groupMembers, notes, departureId } = req.body;
 
   // Input validation
   if (!name || !name.trim()) {
@@ -700,19 +712,35 @@ router.post('/inquiry', async (req, res, next) => {
       }
     }
 
+    // 3b. Deduct group departure slots if departureId provided
+    let resolvedDepartureId = null;
+    if (departureId) {
+      const departureRes = await dbClient.query(
+        'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING id',
+        [guestCount, departureId]
+      );
+      if (departureRes.rows.length === 0) {
+        await dbClient.query('ROLLBACK');
+        began = false;
+        return res.status(400).json({ error: 'Not enough slots remaining for this departure date.' });
+      }
+      resolvedDepartureId = departureId;
+    }
+
     // 4. Create the booking inquiry
     const bookingRes = await dbClient.query(`
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
     `, [
       bookingId, client.name, client.id,
-      packageNameSelected, packageIdSelected,
+      packageNameSelected, packageIdSelected, resolvedDepartureId,
       numericAmount, taxAmount, netAmount,
       discountType, discountValue,
       startDate || null, 'Pending', 'Unassigned',
       guestCount, JSON.stringify(members), notes || '',
-      startDate || null, endDate || null
+      startDate || null, endDate || null,
+      JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false })
     ]);
 
     // 5. Append system log to client

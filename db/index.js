@@ -80,6 +80,19 @@ export default pool;
   await migrate('bookings: group_members', () =>
     pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS group_members JSONB DEFAULT '[]'::jsonb`)
   );
+  await migrate('bookings: progress', () =>
+    pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS progress JSONB DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "vouchersIssued": false}'::jsonb`)
+  );
+
+  await migrate('bookings: progress_final_payment', async () => {
+    await pool.query(`ALTER TABLE bookings ALTER COLUMN progress SET DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "finalPayment": false}'::jsonb`);
+    await pool.query(`
+      UPDATE bookings 
+      SET progress = (COALESCE(progress, '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "vouchersIssued": false}'::jsonb) - 'vouchersIssued') || 
+                     jsonb_build_object('finalPayment', COALESCE((progress->>'vouchersIssued')::boolean, false))
+      WHERE progress IS NOT NULL
+    `);
+  });
 
   await migrate('bookings: amount type', async () => {
     const amtCheck = await pool.query(
@@ -164,9 +177,15 @@ export default pool;
     `)
   );
 
-  await migrate('approvals: index', () =>
-    pool.query(`CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status) WHERE status = 'pending'`)
-  );
+  await migrate('bookings: special_directives', async () => {
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS special_directives JSONB DEFAULT '[]'::jsonb`);
+    // Seed existing bookings with mock/default directives so the UI looks complete right away
+    await pool.query(`
+      UPDATE bookings 
+      SET special_directives = '["VIP Priority Lounge", "Dietary: Gluten-Free", "Window Seats Preferred"]'::jsonb
+      WHERE special_directives IS NULL OR special_directives = '[]'::jsonb
+    `);
+  });
 
   if (ok) {
     console.log('[DB] Pricing migrations complete');

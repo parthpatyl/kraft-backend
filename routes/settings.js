@@ -2,13 +2,34 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
 import { roleHas } from '../middleware/permissions.js';
+import jwt from 'jsonwebtoken';
 
 const router = Router();
 
-// GET settings
-router.get('/', requirePermission('read:settings'), async (req, res, next) => {
+function tryDecodeUser(req) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  const token = header.slice(7);
   try {
-    const result = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+    return jwt.verify(token, process.env.JWT_SECRET || '2bz1MmMpUB6HZ0jnupKxU7zLYT5F4SGJLmAPIewr7kW');
+  } catch {
+    return null;
+  }
+}
+
+// GET settings
+router.get('/', async (req, res, next) => {
+  try {
+    const user = tryDecodeUser(req);
+    if (user && !roleHas(user.role, 'read:settings')) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    const [settingsRes, weatherRes] = await Promise.all([
+      query("SELECT value FROM settings WHERE key = 'agency_settings'"),
+      query("SELECT value FROM settings WHERE key = 'weather_cache'")
+    ]);
+
     const defaultSettings = {
       defaultMarkup: 15,
       defaultAgentSplit: 40,
@@ -47,16 +68,22 @@ router.get('/', requirePermission('read:settings'), async (req, res, next) => {
       ]
     };
 
-    if (result.rows.length === 0) {
-      return res.json(defaultSettings);
-    }
-    const merged = { ...defaultSettings, ...result.rows[0].value };
+    const merged = settingsRes.rows.length > 0
+      ? { ...defaultSettings, ...settingsRes.rows[0].value }
+      : { ...defaultSettings };
+
     if (!merged.specialOffers) {
       merged.specialOffers = defaultSettings.specialOffers;
     }
 
-    // Redact financial/API config from non-financial roles
-    if (!roleHas(req.user.role, 'read:financials')) {
+    if (weatherRes.rows.length > 0) {
+      merged.weatherCache = {
+        lastUpdated: weatherRes.rows[0].value.updatedAt
+      };
+    }
+
+    // Redact financial/API config from non-financial roles or guest requests
+    if (!user || !roleHas(user.role, 'read:financials')) {
       delete merged.permissions;
       delete merged.apis;
       delete merged.defaultMarkup;

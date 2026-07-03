@@ -1,6 +1,7 @@
 -- schema.sql
 -- Create Kraft Your Trip Database Schema
 
+DROP TABLE IF EXISTS group_departures CASCADE;
 DROP TABLE IF EXISTS bookings CASCADE;
 DROP TABLE IF EXISTS clients CASCADE;
 DROP TABLE IF EXISTS packages CASCADE;
@@ -17,6 +18,7 @@ CREATE TABLE packages (
     tax_rate NUMERIC(4,1) DEFAULT 5,
     tax_inclusive BOOLEAN DEFAULT TRUE,
     region VARCHAR(100) NOT NULL,
+    category VARCHAR(50) DEFAULT 'standard',
     slots_booked INTEGER DEFAULT 0,
     slots_total INTEGER NOT NULL,
     trend VARCHAR(100),
@@ -63,6 +65,7 @@ CREATE TABLE bookings (
     client_id VARCHAR(50) REFERENCES clients(id) ON DELETE SET NULL,
     package_name VARCHAR(255) NOT NULL,
     package_id VARCHAR(50) REFERENCES packages(id) ON DELETE SET NULL,
+    departure_id INTEGER REFERENCES group_departures(id) ON DELETE SET NULL,
     amount NUMERIC(12,2) NOT NULL DEFAULT 0,
     tax_amount NUMERIC(10,2) DEFAULT 0,
     net_amount NUMERIC(12,2),
@@ -76,6 +79,22 @@ CREATE TABLE bookings (
     notes TEXT,
     start_date DATE,
     end_date DATE,
+    progress JSONB DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "finalPayment": false}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Group Departures Table (fixed batch departures with shared traveller slots)
+CREATE TABLE group_departures (
+    id SERIAL PRIMARY KEY,
+    package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
+    title VARCHAR(255),
+    departure_date DATE NOT NULL,
+    return_date DATE,
+    slots_total INTEGER NOT NULL DEFAULT 20,
+    slots_booked INTEGER DEFAULT 0,
+    price_modifier NUMERIC(12,2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'scheduled',
+    notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -94,7 +113,9 @@ CREATE TABLE testimonials (
     rating INTEGER,
     text TEXT,
     package VARCHAR(255),
-    images JSONB DEFAULT '[]'::jsonb
+    images JSONB DEFAULT '[]'::jsonb,
+    type VARCHAR(20) DEFAULT 'consumer',
+    company VARCHAR(255)
 );
 
 -- Users Table (for admin auth)
@@ -141,3 +162,38 @@ CREATE TABLE approvals (
 );
 
 CREATE INDEX idx_approvals_status ON approvals(status) WHERE status = 'pending';
+
+-- Corporate / MICE Tours
+CREATE TABLE IF NOT EXISTS corporate_packages (
+    id SERIAL PRIMARY KEY,
+    destination VARCHAR(255) NOT NULL,
+    nights VARCHAR(50),
+    starting_price NUMERIC(10,2),
+    category VARCHAR(50) NOT NULL CHECK (category IN ('india', 'international')),
+    image_url TEXT,
+    description TEXT,
+    highlights TEXT[],
+    is_active BOOLEAN DEFAULT true,
+    display_order INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS corporate_leads (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    mobile VARCHAR(20) NOT NULL,
+    work_email VARCHAR(255) NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+    message TEXT,
+    status VARCHAR(50) DEFAULT 'new',
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS corporate_clients (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    logo_url TEXT,
+    industry VARCHAR(255),
+    display_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true
+);

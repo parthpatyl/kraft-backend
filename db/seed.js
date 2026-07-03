@@ -46,14 +46,122 @@ async function seed() {
       END $$;
     `);
 
+    // Add type column to testimonials
+    await query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'testimonials' AND column_name = 'type'
+        ) THEN
+          ALTER TABLE testimonials ADD COLUMN type VARCHAR(20) DEFAULT 'consumer';
+        END IF;
+      END $$;
+    `);
+
+    // Add company column to testimonials
+    await query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'testimonials' AND column_name = 'company'
+        ) THEN
+          ALTER TABLE testimonials ADD COLUMN company VARCHAR(255);
+        END IF;
+      END $$;
+    `);
+
+    // Add category column to packages
+    await query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'packages' AND column_name = 'category'
+        ) THEN
+          ALTER TABLE packages ADD COLUMN category VARCHAR(50) DEFAULT 'standard';
+        END IF;
+      END $$;
+    `);
+
+    // Create group_departures table
+    await query(`
+      CREATE TABLE IF NOT EXISTS group_departures (
+        id SERIAL PRIMARY KEY,
+        package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
+        title VARCHAR(255),
+        departure_date DATE NOT NULL,
+        return_date DATE,
+        slots_total INTEGER NOT NULL DEFAULT 20,
+        slots_booked INTEGER DEFAULT 0,
+        price_modifier NUMERIC(12,2) DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'scheduled',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Add departure_id to bookings
+    await query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'bookings' AND column_name = 'departure_id'
+        ) THEN
+          ALTER TABLE bookings ADD COLUMN departure_id INTEGER REFERENCES group_departures(id) ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // Create corporate packages table
+    await query(`
+      CREATE TABLE IF NOT EXISTS corporate_packages (
+        id SERIAL PRIMARY KEY,
+        destination VARCHAR(255) NOT NULL,
+        nights VARCHAR(50),
+        starting_price NUMERIC(10,2),
+        category VARCHAR(50) NOT NULL CHECK (category IN ('india', 'international')),
+        image_url TEXT,
+        description TEXT,
+        highlights TEXT[],
+        is_active BOOLEAN DEFAULT true,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create corporate leads table
+    await query(`
+      CREATE TABLE IF NOT EXISTS corporate_leads (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        mobile VARCHAR(20) NOT NULL,
+        work_email VARCHAR(255) NOT NULL,
+        company_name VARCHAR(255) NOT NULL,
+        message TEXT,
+        status VARCHAR(50) DEFAULT 'new',
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create corporate clients table
+    await query(`
+      CREATE TABLE IF NOT EXISTS corporate_clients (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        logo_url TEXT,
+        industry VARCHAR(255),
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true
+      );
+    `);
+
     console.log('Clearing database tables...');
     await query('TRUNCATE packages, clients, bookings, testimonials RESTART IDENTITY CASCADE');
 
     console.log('Seeding packages...');
     for (const pkg of initialPackages) {
       await query(
-        `INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        `INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, category, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name,
            duration = EXCLUDED.duration,
@@ -62,6 +170,7 @@ async function seed() {
            tax_rate = EXCLUDED.tax_rate,
            tax_inclusive = EXCLUDED.tax_inclusive,
            region = EXCLUDED.region,
+           category = EXCLUDED.category,
            slots_booked = EXCLUDED.slots_booked,
            slots_total = EXCLUDED.slots_total,
            trend = EXCLUDED.trend,
@@ -82,7 +191,8 @@ async function seed() {
           pkg.taxRate ?? 5,
           pkg.taxInclusive ?? true,
           pkg.region,
-          pkg.slots.booked,
+          pkg.category ?? 'standard',
+          0,
           pkg.slots.total,
           pkg.trend,
           JSON.stringify(pkg.inclusionsSelection),
@@ -94,6 +204,17 @@ async function seed() {
           pkg.exclusions,
           JSON.stringify(pkg.itinerary)
         ]
+      );
+    }
+
+    console.log('Seeding group departures...');
+    const departureData = [];
+    for (const dd of departureData) {
+      await query(
+        `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, slots_booked, price_modifier, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT DO NOTHING`,
+        [dd.packageId, dd.title, dd.departureDate, dd.returnDate, dd.slotsTotal, 0, dd.priceModifier, dd.status]
       );
     }
 
@@ -206,8 +327,8 @@ async function seed() {
     await query('TRUNCATE testimonials RESTART IDENTITY');
     for (const testimonial of initialTestimonials) {
       await query(
-        `INSERT INTO testimonials (name, location, avatar, rating, text, images, package)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, company)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
           testimonial.name,
           testimonial.location,
@@ -215,8 +336,21 @@ async function seed() {
           testimonial.rating,
           testimonial.text,
           JSON.stringify(testimonial.images || []),
-          testimonial.package
+          testimonial.package,
+          testimonial.type || 'consumer',
+          testimonial.company || ''
         ]
+      );
+    }
+
+    console.log('Seeding corporate packages...');
+    const corporatePackages = [];
+    await query('TRUNCATE corporate_packages RESTART IDENTITY');
+    for (const pkg of corporatePackages) {
+      await query(
+        `INSERT INTO corporate_packages (destination, nights, starting_price, category, description)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [pkg.destination, pkg.nights, pkg.startingPrice, pkg.category, pkg.description]
       );
     }
 
