@@ -1,0 +1,28 @@
+extends layouts/base.pug
+
+block content
+  h2(style="margin:0 0 16px;color:#1a1a2e;font-size:20px;font-weight:600;") Thank You, #{enquiry.name}!
+  p(style="margin:0 0 16px;color:#4a5568;font-size:15px;line-height:1.6;")
+    | Your travel enquiry has been received successfully. Our team will review your requirements and get back to you within 24 hours.
+
+  div(style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:20px 0;")
+    h3(style="margin:0 0 16px;color:#1a1a2e;font-size:16px;font-weight:600;") Enquiry Summary
+    table(role="presentation" width="100%" cellpadding="0" cellspacing="0")
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;") Enquiry ID
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;") #{enquiry.id}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Destination
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.destination}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Travel Date
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.travelDate}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Guests
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.guests}
+
+  div(style="margin:28px 0;")
+    a(href=`${appUrl}/enquiry/${enquiry.id}` style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;") View Enquiry Details
+
+  p(style="margin:16px 0 0;color:#4a5568;font-size:14px;line-height:1.6;")
+    | In the meantime, feel free to explore our website for travel inspiration or contact us directly if you have any questions.

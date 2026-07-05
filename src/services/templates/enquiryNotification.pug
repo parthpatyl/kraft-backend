@@ -1,0 +1,44 @@
+extends layouts/base.pug
+
+block content
+  h2(style="margin:0 0 16px;color:#1a1a2e;font-size:20px;font-weight:600;") New Enquiry Received
+  p(style="margin:0 0 16px;color:#4a5568;font-size:15px;line-height:1.6;")
+    | A new travel enquiry has been submitted by <strong>#{enquiry.name}</strong>.
+
+  div(style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:20px 0;")
+    h3(style="margin:0 0 16px;color:#1a1a2e;font-size:16px;font-weight:600;") Contact Information
+    table(role="presentation" width="100%" cellpadding="0" cellspacing="0")
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;") Name
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;") #{enquiry.name}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Email
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.email}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Phone
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.phone}
+
+    h3(style="margin:20px 0 16px;color:#1a1a2e;font-size:16px;font-weight:600;") Enquiry Details
+    table(role="presentation" width="100%" cellpadding="0" cellspacing="0")
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;") Enquiry ID
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;") #{enquiry.id}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Destination
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.destination}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Travel Date
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.travelDate}
+      tr
+        td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;") Guests
+        td(style="padding:8px 0;color:#1a1a2e;font-size:14px;font-weight:600;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.guests}
+      if enquiry.notes
+        tr
+          td(style="padding:8px 0;color:#718096;font-size:14px;border-top:1px solid #e2e8f0;vertical-align:top;") Notes
+          td(style="padding:8px 0;color:#1a1a2e;font-size:14px;text-align:right;border-top:1px solid #e2e8f0;") #{enquiry.notes}
+
+  div(style="margin:28px 0;")
+    a(href=`${adminUrl}/enquiries/${enquiry.id}` style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-size:15px;font-weight:600;") Respond to Enquiry
+
+  p(style="margin:16px 0 0;color:#718096;font-size:13px;line-height:1.5;border-top:1px solid #e2e8f0;padding-top:16px;")
+    | Submitted at: #{enquiry.submittedAt}

@@ -24,7 +24,10 @@ router.post('/', requirePermission('manage:users'), async (req, res, next) => {
     const { name, email, password, role, avatar_url } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
     if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Valid email is required' });
-    if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must be alphanumeric (contain both letters and numbers)' });
+    }
     if (!role || !VALID_ROLES.includes(role)) return res.status(400).json({ error: `Role must be one of: ${VALID_ROLES.join(', ')}` });
 
     const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
@@ -97,14 +100,25 @@ router.delete('/:id(\\d+)', requirePermission('manage:users'), async (req, res, 
 router.post('/:id(\\d+)/reset-password', requirePermission('manage:users'), async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Password must be alphanumeric (contain both letters and numbers)' });
+    }
+
     const currentRes = await query('SELECT id FROM users WHERE id = $1', [id]);
     if (currentRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const newPassword = crypto.randomBytes(4).toString('hex');
-    const password_hash = await bcrypt.hash(newPassword, 10);
+    const password_hash = await bcrypt.hash(password, 10);
     await query('UPDATE users SET password_hash = $1 WHERE id = $2', [password_hash, id]);
 
-    res.json({ message: 'Password reset successfully', newPassword });
+    res.json({ message: 'Password reset successfully' });
   } catch (err) {
     next(err);
   }

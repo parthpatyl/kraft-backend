@@ -155,6 +155,16 @@ export default pool;
     `)
   );
 
+  await migrate('corporate_leads: financial columns', async () => {
+    await pool.query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS per_person_rate NUMERIC(12,2)`);
+    await pool.query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS group_size INTEGER`);
+    await pool.query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS discount_type VARCHAR(10)`);
+    await pool.query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10,2)`);
+    await pool.query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(4,1) DEFAULT 5`);
+    await pool.query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN DEFAULT TRUE`);
+    await pool.query(`ALTER TABLE corporate_leads DROP COLUMN IF EXISTS estimated_value`);
+  });
+
   await migrate('approvals: create table', () =>
     pool.query(`
       CREATE TABLE IF NOT EXISTS approvals (
@@ -186,6 +196,28 @@ export default pool;
       WHERE special_directives IS NULL OR special_directives = '[]'::jsonb
     `);
   });
+
+  await migrate('enquiries: create table', () =>
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS enquiries (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        destination VARCHAR(255) NOT NULL,
+        travel_date DATE NOT NULL,
+        guests INTEGER NOT NULL DEFAULT 1,
+        notes TEXT,
+        preferences JSONB,
+        status VARCHAR(20) DEFAULT 'logged',
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+  );
+
+  await migrate('enquiries: status column', () =>
+    pool.query(`ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'logged'`)
+  );
 
   if (ok) {
     console.log('[DB] Pricing migrations complete');

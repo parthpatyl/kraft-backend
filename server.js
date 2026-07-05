@@ -22,6 +22,10 @@ import notificationsRouter from './routes/notifications.js';
 import usersRouter from './routes/users.js';
 import approvalsRouter from './routes/approvals.js';
 import statsRouter from './routes/stats.js';
+import enquiryRouter from './src/routes/enquiry.routes.js';
+import logger from './src/utils/logger.js';
+import { verifyConnection, createTransporter } from './src/services/emailService.js';
+import { getQueueStats } from './src/services/emailQueue.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,19 +64,66 @@ app.use('/api/users', usersRouter);
 app.use('/api/approvals', approvalsRouter);
 app.use('/api/stats', statsRouter);
 
-// Basic health check route
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date() });
+// Enquiry routes (SMTP-powered)
+app.use('/api/enquiries', enquiryRouter);
+
+// Redirect backend enquiry links to customer site
+app.get('/enquiry/:id', (req, res) => {
+  const frontendUrl = process.env.APP_URL || 'http://localhost:5173';
+  res.redirect(`${frontendUrl}/enquiry/${req.params.id}`);
+});
+
+// Redirect backend admin enquiry links to admin site
+app.get('/admin/enquiries/:id', (req, res) => {
+  const adminUrl = process.env.ADMIN_URL || 'http://localhost:5174';
+  res.redirect(`${adminUrl}/enquiries/${req.params.id}`);
+});
+
+app.get('/enquiries/:id', (req, res) => {
+  const adminUrl = process.env.ADMIN_URL || 'http://localhost:5174';
+  res.redirect(`${adminUrl}/enquiries/${req.params.id}`);
+});
+
+// Health check with SMTP status
+app.get('/api/health', async (req, res) => {
+  let smtpConnected = false;
+  let queueStats = { completed: 0, failed: 0, pending: 0, active: 0 };
+  try {
+    smtpConnected = await verifyConnection();
+    queueStats = await getQueueStats();
+  } catch (e) {
+    logger.warn('Health check SMTP error', { error: e.message });
+  }
+  res.json({
+    status: 'OK',
+    smtpConnected,
+    emailQueue: queueStats,
+    timestamp: new Date(),
+  });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('API Error:', err);
+  logger.error('API Error', { error: err.message, stack: err.stack, method: req.method, url: req.url });
   res.status(err.status || 500).json({
     error: err.message || 'Internal Server Error'
   });
 });
 
 app.listen(PORT, () => {
+  logger.info(`Server started on port ${PORT}`);
   console.log(`Server is running on port ${PORT}`);
+
+  // Initialize SMTP transporter on startup
+  createTransporter().then(() => {
+    verifyConnection().then((ok) => {
+      if (ok) {
+        logger.info('SMTP ready on startup');
+      } else {
+        logger.warn('SMTP not available on startup - emails will retry via queue');
+      }
+    });
+  }).catch((err) => {
+    logger.error('SMTP init failed on startup', { error: err.message });
+  });
 });

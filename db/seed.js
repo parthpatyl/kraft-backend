@@ -138,9 +138,24 @@ async function seed() {
         company_name VARCHAR(255) NOT NULL,
         message TEXT,
         status VARCHAR(50) DEFAULT 'new',
+        per_person_rate NUMERIC(12,2),
+        group_size INTEGER,
+        discount_type VARCHAR(10),
+        discount_value NUMERIC(10,2),
+        tax_rate NUMERIC(4,1) DEFAULT 5,
+        tax_inclusive BOOLEAN DEFAULT TRUE,
         submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Add financial columns if missing (for existing databases)
+    await query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS per_person_rate NUMERIC(12,2);`);
+    await query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS group_size INTEGER;`);
+    await query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS discount_type VARCHAR(10);`);
+    await query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS discount_value NUMERIC(10,2);`);
+    await query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(4,1) DEFAULT 5;`);
+    await query(`ALTER TABLE corporate_leads ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN DEFAULT TRUE;`);
+    await query(`ALTER TABLE corporate_leads DROP COLUMN IF EXISTS estimated_value;`);
 
     // Create corporate clients table
     await query(`

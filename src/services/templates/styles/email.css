@@ -1,0 +1,16 @@
+/* Email Styles - Reference for inline styles used in PUG templates */
+/* Styles are inlined directly in PUG templates for email client compatibility. */
+/* This file serves as a reference for the design system. */
+
+:root {
+  --primary-gradient-start: #667eea;
+  --primary-gradient-end: #764ba2;
+  --dark-bg: #1a1a2e;
+  --text-primary: #1a1a2e;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --border-color: #e2e8f0;
+  --bg-light: #f8fafc;
+  --bg-page: #f4f4f5;
+  --radius: 8px;
+}

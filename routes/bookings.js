@@ -5,6 +5,8 @@ import requireAuth from '../middleware/requireAuth.js';
 import { requirePermission } from '../middleware/requireRole.js';
 import { roleHas } from '../middleware/permissions.js';
 import { notifyAll } from '../middleware/notify.js';
+import { processEnquiryEmails } from '../src/services/emailQueue.js';
+import logger from '../src/utils/logger.js';
 
 const router = Router();
 
@@ -759,6 +761,45 @@ router.post('/inquiry', async (req, res, next) => {
 
     await dbClient.query('COMMIT');
     began = false;
+
+    // 6. Queue confirmation emails (non-blocking, fire-and-forget)
+    processEnquiryEmails({
+      id: bookingId,
+      name: name.trim(),
+      email,
+      phone: phone.trim(),
+      destination: (packageId === 'custom-other' && req.body.customDestination)
+        ? req.body.customDestination.trim()
+        : packageNameSelected,
+      travelDate: startDate,
+      guests: guestCount,
+      notes: notes || '',
+      submittedAt: new Date().toISOString(),
+    }).catch((err) => {
+      logger.error('Booking inquiry email queue failed', { bookingId, error: err.message });
+    });
+
+    // 7. Create enquiry status record so BK-* IDs have trackable status
+    query(
+      `INSERT INTO enquiries (id, name, email, phone, destination, travel_date, guests, notes, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'logged', $9)
+       ON CONFLICT (id) DO NOTHING`,
+      [
+        bookingId,
+        name.trim(),
+        email,
+        phone.trim(),
+        (packageId === 'custom-other' && req.body.customDestination)
+          ? req.body.customDestination.trim()
+          : packageNameSelected,
+        startDate,
+        guestCount,
+        notes || '',
+        new Date().toISOString(),
+      ]
+    ).catch((err) => {
+      logger.error('Failed to create enquiry status record for BK-* booking', { bookingId, error: err.message });
+    });
 
     res.status(201).json({
       message: discountType === 'group'

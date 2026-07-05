@@ -186,6 +186,12 @@ CREATE TABLE IF NOT EXISTS corporate_leads (
     company_name VARCHAR(255) NOT NULL,
     message TEXT,
     status VARCHAR(50) DEFAULT 'new',
+    per_person_rate NUMERIC(12,2),
+    group_size INTEGER,
+    discount_type VARCHAR(10),
+    discount_value NUMERIC(10,2),
+    tax_rate NUMERIC(4,1) DEFAULT 5,
+    tax_inclusive BOOLEAN DEFAULT TRUE,
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -196,4 +202,18 @@ CREATE TABLE IF NOT EXISTS corporate_clients (
     industry VARCHAR(255),
     display_order INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true
+);
+
+-- Enquiries Table
+CREATE TABLE IF NOT EXISTS enquiries (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    destination VARCHAR(255) NOT NULL,
+    travel_date DATE NOT NULL,
+    guests INTEGER NOT NULL DEFAULT 1,
+    notes TEXT,
+    preferences JSONB,
+    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
