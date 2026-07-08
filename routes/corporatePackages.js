@@ -9,8 +9,10 @@ function tryDecodeUser(req) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) return null;
   const token = header.slice(7);
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return null;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET || '2bz1MmMpUB6HZ0jnupKxU7zLYT5F4SGJLmAPIewr7kW');
+    return jwt.verify(token, secret);
   } catch {
     return null;
   }

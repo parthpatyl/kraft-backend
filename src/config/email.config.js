@@ -10,7 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 const emailConfig = {
   host: process.env.GOOGLE_SMTP_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.GOOGLE_SMTP_PORT, 10) || 587,
-  secure: false,
+  secure: parseInt(process.env.GOOGLE_SMTP_PORT, 10) === 465,
   auth: {
     user: process.env.GOOGLE_SMTP_USER || '',
     pass: process.env.GOOGLE_SMTP_PASSWORD || '',

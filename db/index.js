@@ -219,6 +219,10 @@ export default pool;
     pool.query(`ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'logged'`)
   );
 
+  await migrate('enquiries: travel_date nullable', () =>
+    pool.query(`ALTER TABLE enquiries ALTER COLUMN travel_date DROP NOT NULL`)
+  );
+
   if (ok) {
     console.log('[DB] Pricing migrations complete');
   } else {

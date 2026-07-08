@@ -32,6 +32,27 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+// Validate JWT_SECRET security configuration on startup
+const jwtSecret = process.env.JWT_SECRET;
+const isProd = process.env.NODE_ENV === 'production';
+const placeholders = ['your-jwt-secret-here', 'your-jwt-secret-placeholder', 'placeholder', 'dev-secret'];
+
+const isSecretWeak = !jwtSecret || jwtSecret.length < 32 || placeholders.includes(jwtSecret.toLowerCase());
+
+if (isSecretWeak) {
+  if (isProd) {
+    console.error('FATAL: JWT_SECRET must be configured, at least 32 characters long, and not a placeholder in production!');
+    process.exit(1);
+  } else {
+    console.warn('\n======================================================================');
+    console.warn('WARNING: JWT_SECRET is not configured, is too short (< 32 chars), or');
+    console.warn('uses a default placeholder value.');
+    console.warn('Please update JWT_SECRET in your .env file for security.');
+    console.warn('======================================================================\n');
+  }
+}
+
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 

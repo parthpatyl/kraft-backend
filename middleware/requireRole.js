@@ -8,8 +8,12 @@ export function requirePermission(...permissions) {
       return res.status(401).json({ error: 'Authentication required' });
     }
     const token = header.slice(7);
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      return res.status(500).json({ error: 'JWT Secret is not configured on the server' });
+    }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || '2bz1MmMpUB6HZ0jnupKxU7zLYT5F4SGJLmAPIewr7kW');
+      const decoded = jwt.verify(token, secret);
       req.user = decoded;
     } catch {
       return res.status(401).json({ error: 'Invalid or expired token' });

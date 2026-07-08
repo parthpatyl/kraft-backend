@@ -1,5 +1,5 @@
 import { query } from '../db/index.js';
-import nodemailer from 'nodemailer';
+import { sendEmail } from '../src/services/emailService.js';
 
 export async function notifyUser({ userId, message, type = 'system', link }) {
   try {
@@ -31,20 +31,7 @@ export async function notifyClientLog(clientId, text) {
 
 export async function notifyEmail(to, subject, text) {
   try {
-    const settingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
-    const smtp = settingsRes.rows[0]?.value?.smtp;
-    if (!smtp || !smtp.host || !smtp.user || !smtp.pass) {
-      console.warn('[notify] SMTP not configured — skipping email');
-      return;
-    }
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port || 587,
-      secure: smtp.port === 465,
-      auth: { user: smtp.user, pass: smtp.pass }
-    });
-    await transporter.sendMail({
-      from: smtp.from || smtp.user,
+    await sendEmail({
       to,
       subject,
       text

@@ -2,6 +2,46 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { processEnquiryEmails } from '../services/emailQueue.js';
 import { query } from '../../db/index.js';
+import jwt from 'jsonwebtoken';
+
+function tryDecodeUser(req) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  const token = header.slice(7);
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return null;
+  try {
+    return jwt.verify(token, secret);
+  } catch {
+    return null;
+  }
+}
+
+function maskEmail(email) {
+  if (!email) return '';
+  const parts = email.split('@');
+  if (parts.length !== 2) return email;
+  const [local, domain] = parts;
+  const maskedLocal = local.length > 2 
+    ? local[0] + '*'.repeat(local.length - 2) + local[local.length - 1]
+    : local[0] + '*';
+  return `${maskedLocal}@${domain}`;
+}
+
+function maskPhone(phone) {
+  if (!phone) return '';
+  const clean = phone.trim();
+  if (clean.length < 4) return '***';
+  return clean.slice(0, 3) + '*'.repeat(clean.length - 7) + clean.slice(-4);
+}
+
+function maskName(name) {
+  if (!name) return '';
+  return name.split(' ').map(part => {
+    if (part.length <= 2) return part[0] + '*';
+    return part[0] + '*'.repeat(part.length - 2) + part[part.length - 1];
+  }).join(' ');
+}
 
 const VALID_STATUSES = ['logged', 'reviewing', 'proposing', 'finalized'];
 
@@ -88,6 +128,8 @@ export async function submitEnquiry(req, res) {
 export async function getEnquiryById(req, res) {
   try {
     const { id } = req.params;
+    const user = tryDecodeUser(req);
+    const isAuthenticated = !!user;
 
     const { rows } = await query('SELECT * FROM enquiries WHERE id = $1', [id]);
     if (rows.length > 0) {
@@ -96,14 +138,14 @@ export async function getEnquiryById(req, res) {
         status: 'success',
         data: {
           id: row.id,
-          name: row.name,
-          email: row.email,
-          phone: row.phone,
+          name: isAuthenticated ? row.name : maskName(row.name),
+          email: isAuthenticated ? row.email : maskEmail(row.email),
+          phone: isAuthenticated ? row.phone : maskPhone(row.phone),
           destination: row.destination,
           travelDate: row.travel_date ? new Date(row.travel_date).toISOString().split('T')[0] : null,
           guests: row.guests,
-          notes: row.notes,
-          preferences: row.preferences,
+          notes: isAuthenticated ? row.notes : '[Content hidden for security]',
+          preferences: isAuthenticated ? row.preferences : null,
           status: row.status || 'logged',
           submittedAt: row.submitted_at,
         },
@@ -130,13 +172,13 @@ export async function getEnquiryById(req, res) {
           status: 'success',
           data: {
             id: b.id,
-            name: b.client_name,
-            email: b.email || '',
-            phone: b.phone || '',
+            name: isAuthenticated ? b.client_name : maskName(b.client_name),
+            email: isAuthenticated ? (b.email || '') : maskEmail(b.email || ''),
+            phone: isAuthenticated ? (b.phone || '') : maskPhone(b.phone || ''),
             destination: b.package_name,
             travelDate: b.start_date ? b.start_date.toISOString().split('T')[0] : null,
             guests: b.guests,
-            notes: b.notes || '',
+            notes: isAuthenticated ? (b.notes || '') : '[Content hidden for security]',
             preferences: null,
             status: enquiryStatus,
             submittedAt: b.created_at || b.start_date,

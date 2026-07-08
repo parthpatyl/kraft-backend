@@ -76,7 +76,7 @@ export function renderTemplate(templateName, data) {
   }
 }
 
-export async function sendEmail({ to, subject, html, replyTo, priority }) {
+export async function sendEmail({ to, subject, html, text, replyTo, priority }) {
   if (!transporter) {
     await createTransporter();
   }
@@ -85,13 +85,15 @@ export async function sendEmail({ to, subject, html, replyTo, priority }) {
     from: `"${emailConfig.fromName}" <${emailConfig.fromEmail}>`,
     to,
     subject,
-    html,
     priority: priority || 'normal',
     headers: {
       'List-Unsubscribe': `<mailto:${emailConfig.fromEmail}?subject=unsubscribe>`,
       'X-Priority': priority === 'high' ? '1' : '3',
     },
   };
+
+  if (html) mailOptions.html = html;
+  if (text) mailOptions.text = text;
 
   if (replyTo) {
     mailOptions.replyTo = replyTo;

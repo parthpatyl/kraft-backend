@@ -183,7 +183,7 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
 });
 
 // PUT update a booking (status, agent, amount, dates, guests, etc)
-router.put('/:id', requireAuth, async (req, res, next) => {
+router.put('/:id', requirePermission('write:bookings'), async (req, res, next) => {
   const { id } = req.params;
   const {
     client,

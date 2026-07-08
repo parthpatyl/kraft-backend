@@ -59,11 +59,11 @@ router.patch('/:id/read', async (req, res, next) => {
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid notification ID' });
 
     const result = await query(
-      'UPDATE notifications SET read = NOT read WHERE id = $1 RETURNING *',
-      [id]
+      'UPDATE notifications SET read = NOT read WHERE id = $1 AND (user_id IS NULL OR user_id = $2) RETURNING *',
+      [id, req.user.id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Notification not found' });
+      return res.status(404).json({ error: 'Notification not found or unauthorized' });
     }
     res.json(result.rows[0]);
   } catch (err) {
@@ -76,12 +76,22 @@ router.delete('/:id', async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'Invalid notification ID' });
 
-    const result = await query(
-      'DELETE FROM notifications WHERE id = $1 RETURNING *',
-      [id]
-    );
+    const isAdmin = req.user.role === 'admin';
+    let result;
+    if (isAdmin) {
+      result = await query(
+        'DELETE FROM notifications WHERE id = $1 RETURNING *',
+        [id]
+      );
+    } else {
+      result = await query(
+        'DELETE FROM notifications WHERE id = $1 AND user_id = $2 RETURNING *',
+        [id, req.user.id]
+      );
+    }
+
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Notification not found' });
+      return res.status(404).json({ error: 'Notification not found or unauthorized' });
     }
     res.json({ message: 'Notification deleted' });
   } catch (err) {

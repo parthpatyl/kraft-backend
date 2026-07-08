@@ -23,10 +23,9 @@ const enquirySchema = Joi.object({
       'string.max': 'Destination must not exceed 200 characters',
       'any.required': 'Destination is required',
     }),
-  travelDate: Joi.date().iso().min('now').required()
+  travelDate: Joi.date().iso().required()
     .messages({
       'date.format': 'Travel date must be a valid ISO date (YYYY-MM-DD)',
-      'date.min': 'Travel date must be in the future',
       'any.required': 'Travel date is required',
     }),
   guests: Joi.number().integer().min(1).max(50).default(1)
