@@ -223,6 +223,49 @@ export default pool;
     pool.query(`ALTER TABLE enquiries ALTER COLUMN travel_date DROP NOT NULL`)
   );
 
+  await migrate('speciality_categories: create table & seed', async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS speciality_categories (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        subtitle TEXT,
+        keyword VARCHAR(100) NOT NULL,
+        icon_name VARCHAR(50) DEFAULT 'Compass',
+        icon_color VARCHAR(50) DEFAULT 'text-blue-600',
+        icon_bg VARCHAR(50) DEFAULT 'bg-blue-50',
+        accent_color VARCHAR(50) DEFAULT 'text-blue-400',
+        default_count INTEGER DEFAULT 20,
+        sort_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Seed default 8 categories if table is empty
+    const check = await pool.query(`SELECT COUNT(*)::int FROM speciality_categories`);
+    if (check.rows[0].count === 0) {
+      const defaults = [
+        ['adventure', 'Adventure', 'Thrilling treks & expeditions', 'Adventure', 'Compass', 'text-blue-600', 'bg-blue-50', 'text-blue-400 group-hover:text-blue-300', 24, 1],
+        ['wellness', 'Wellness', 'Rejuvenate mind & body', 'Wellness', 'Sparkles', 'text-teal-600', 'bg-teal-50', 'text-teal-400 group-hover:text-teal-300', 18, 2],
+        ['honeymoon', 'Honeymoon', 'Romantic getaways', 'Honeymoon', 'Heart', 'text-rose-500', 'bg-rose-50', 'text-rose-400 group-hover:text-rose-300', 31, 3],
+        ['wildlife', 'Wildlife', 'Safari & nature tours', 'Wildlife', 'Binoculars', 'text-emerald-600', 'bg-emerald-50', 'text-emerald-400 group-hover:text-emerald-300', 15, 4],
+        ['culinary', 'Culinary', 'Taste the world', 'Culinary', 'Utensils', 'text-amber-600', 'bg-amber-50', 'text-amber-400 group-hover:text-amber-300', 22, 5],
+        ['cruises', 'Cruises', 'Sail the seas in style', 'Cruise', 'Ship', 'text-sky-600', 'bg-sky-50', 'text-sky-400 group-hover:text-sky-300', 9, 6],
+        ['photography', 'Photography', 'Capture stunning moments', 'Photography', 'Camera', 'text-purple-600', 'bg-purple-50', 'text-purple-400 group-hover:text-purple-300', 11, 7],
+        ['group-tours', 'Group Tours', 'Travel with like-minded people', 'Group', 'Users', 'text-indigo-600', 'bg-indigo-50', 'text-indigo-400 group-hover:text-indigo-300', 27, 8],
+      ];
+      for (const row of defaults) {
+        await pool.query(
+          `INSERT INTO speciality_categories 
+            (id, name, subtitle, keyword, icon_name, icon_color, icon_bg, accent_color, default_count, sort_order, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+           ON CONFLICT (id) DO NOTHING`,
+          row
+        );
+      }
+    }
+  });
+
   if (ok) {
     console.log('[DB] Pricing migrations complete');
   } else {

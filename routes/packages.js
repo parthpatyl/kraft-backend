@@ -45,6 +45,7 @@ function mapPackageToFrontend(row, { admin = false, financials = false, inrToUsd
     ctaBadge: row.cta_badge ?? '',
     isBespoke: row.is_bespoke ?? false,
     category: row.category ?? 'standard',
+    categoryIds: row.category_ids || [],
     taxRate,
     taxInclusive: row.tax_inclusive ?? true
   };
@@ -95,23 +96,29 @@ router.get('/', async (req, res, next) => {
     const canViewFinancials = user ? roleHas(user.role, 'read:financials') : false;
     const { category, region } = req.query;
 
-    let sql = 'SELECT * FROM packages';
+    let sql = `
+      SELECT p.*, COALESCE(
+        (SELECT json_agg(category_id) FROM package_speciality_categories WHERE package_id = p.id),
+        '[]'::json
+      ) AS category_ids 
+      FROM packages p
+    `;
     const params = [];
     const conditions = [];
 
     if (category) {
       params.push(category);
-      conditions.push(`category = $${params.length}`);
+      conditions.push(`p.category = $${params.length}`);
     }
     if (region) {
       params.push(region);
-      conditions.push(`region = $${params.length}`);
+      conditions.push(`p.region = $${params.length}`);
     }
 
     if (conditions.length > 0) {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
-    sql += ' ORDER BY created_at DESC';
+    sql += ' ORDER BY p.created_at DESC';
 
     const [pkgResult, settingsResult] = await Promise.all([
       query(sql, params),
@@ -154,7 +161,8 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       itinerary,
       bestMonth,
       ctaBadge,
-      isBespoke
+      isBespoke,
+      categoryIds
     } = req.body;
 
     const err = validatePrice(basePrice, 'basePrice')
@@ -201,7 +209,20 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       isBespoke ?? false
     ]);
 
-    res.status(201).json(mapPackageToFrontend(result.rows[0], { admin: true, financials: true, inrToUsdRate }));
+    // Sync categories
+    if (Array.isArray(categoryIds)) {
+      for (const catId of categoryIds) {
+        await query(
+          'INSERT INTO package_speciality_categories (package_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [id, catId]
+        );
+      }
+    }
+
+    const packageRow = result.rows[0];
+    packageRow.category_ids = categoryIds || [];
+
+    res.status(201).json(mapPackageToFrontend(packageRow, { admin: true, financials: true, inrToUsdRate }));
   } catch (error) {
     next(error);
   }
@@ -232,7 +253,8 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       itinerary,
       bestMonth,
       ctaBadge,
-      isBespoke
+      isBespoke,
+      categoryIds
     } = req.body;
 
     const err = validatePrice(basePrice, 'basePrice')
@@ -360,7 +382,23 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       id
     ]);
 
-    res.json(mapPackageToFrontend(result.rows[0], { admin: true, financials: true, inrToUsdRate }));
+    // Sync categories
+    if (Array.isArray(categoryIds)) {
+      await query('DELETE FROM package_speciality_categories WHERE package_id = $1', [id]);
+      for (const catId of categoryIds) {
+        await query(
+          'INSERT INTO package_speciality_categories (package_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [id, catId]
+        );
+      }
+    }
+
+    const packageRow = result.rows[0];
+    packageRow.category_ids = categoryIds !== undefined ? categoryIds : (
+      await query('SELECT category_id FROM package_speciality_categories WHERE package_id = $1', [id])
+    ).rows.map(r => r.category_id);
+
+    res.json(mapPackageToFrontend(packageRow, { admin: true, financials: true, inrToUsdRate }));
   } catch (error) {
     next(error);
   }

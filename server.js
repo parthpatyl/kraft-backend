@@ -22,6 +22,7 @@ import notificationsRouter from './routes/notifications.js';
 import usersRouter from './routes/users.js';
 import approvalsRouter from './routes/approvals.js';
 import statsRouter from './routes/stats.js';
+import specialityCategoriesRouter from './routes/specialityCategories.js';
 import enquiryRouter from './src/routes/enquiry.routes.js';
 import logger from './src/utils/logger.js';
 import { verifyConnection, createTransporter } from './src/services/emailService.js';
@@ -84,6 +85,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/approvals', approvalsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/speciality-categories', specialityCategoriesRouter);
 
 // Enquiry routes (SMTP-powered)
 app.use('/api/enquiries', enquiryRouter);

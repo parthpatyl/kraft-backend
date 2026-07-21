@@ -67,7 +67,27 @@ router.get('/', async (req, res, next) => {
           buttonText: 'Inquire Now',
           targetPage: 'booking'
         }
-      ]
+      ],
+      heroSection: {
+        bgImage: '/photo-1506929562872-bb421503ef21.jpeg',
+        titleMain: 'Kraft your perfect',
+        titleItalic: 'journey.',
+        description: 'Handcrafted travel to the world\'s most extraordinary places \nfrom ancient temples in Kyoto to overwater villas in the Maldives. Your escape, designed end-to-end.',
+        btnPrimaryText: 'Explore Packages',
+        btnSecondaryText: 'Plan a Custom Trip',
+        stats: [
+          { value: '10+', label: 'Trips Crafted', icon: 'Compass' },
+          { value: '52%', label: 'Satisfaction', icon: 'Sparkles' },
+          { value: '40+', label: 'Destinations', icon: 'Globe' }
+        ]
+      },
+      ctaSection: {
+        bgImage: '/assets/unsplash-app-hero.jpg',
+        badgeText: 'Your Next Chapter',
+        heading: 'Ready to start planning your escape?',
+        description: 'Get in touch with our expert luxury travel specialists. We will customize every detail of your itinerary to build your perfect journey.',
+        buttonText: 'Request custom quote'
+      }
     };
 
     const merged = settingsRes.rows.length > 0
@@ -76,6 +96,18 @@ router.get('/', async (req, res, next) => {
 
     if (!merged.specialOffers) {
       merged.specialOffers = defaultSettings.specialOffers;
+    }
+
+    if (!merged.heroSection) {
+      merged.heroSection = defaultSettings.heroSection;
+    } else {
+      merged.heroSection = { ...defaultSettings.heroSection, ...merged.heroSection };
+    }
+
+    if (!merged.ctaSection) {
+      merged.ctaSection = defaultSettings.ctaSection;
+    } else {
+      merged.ctaSection = { ...defaultSettings.ctaSection, ...merged.ctaSection };
     }
 
     if (weatherRes.rows.length > 0) {

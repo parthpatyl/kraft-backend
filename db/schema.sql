@@ -217,3 +217,27 @@ CREATE TABLE IF NOT EXISTS enquiries (
     preferences JSONB,
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Speciality Categories Table
+CREATE TABLE IF NOT EXISTS speciality_categories (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    subtitle TEXT,
+    keyword VARCHAR(100) NOT NULL,
+    icon_name VARCHAR(50) DEFAULT 'Compass',
+    icon_color VARCHAR(50) DEFAULT 'text-blue-600',
+    icon_bg VARCHAR(50) DEFAULT 'bg-blue-50',
+    accent_color VARCHAR(50) DEFAULT 'text-blue-400',
+    default_count INTEGER DEFAULT 20,
+    sort_order INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Package Speciality Categories Join Table
+CREATE TABLE IF NOT EXISTS package_speciality_categories (
+    package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
+    category_id VARCHAR(50) REFERENCES speciality_categories(id) ON DELETE CASCADE,
+    PRIMARY KEY (package_id, category_id)
+);
+
