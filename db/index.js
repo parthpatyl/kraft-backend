@@ -266,6 +266,35 @@ export default pool;
     }
   });
 
+  await migrate('package_speciality_categories: create table & seed', async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS package_speciality_categories (
+        package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
+        category_id VARCHAR(50) REFERENCES speciality_categories(id) ON DELETE CASCADE,
+        PRIMARY KEY (package_id, category_id)
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO package_speciality_categories (package_id, category_id)
+      SELECT p.id, c.id
+      FROM packages p
+      CROSS JOIN speciality_categories c
+      WHERE 
+          LOWER(p.name) LIKE '%' || LOWER(c.keyword) || '%' OR
+          LOWER(p.description) LIKE '%' || LOWER(c.keyword) || '%' OR
+          LOWER(p.region) LIKE '%' || LOWER(c.keyword) || '%' OR
+          LOWER(p.category) LIKE '%' || LOWER(c.keyword) || '%' OR
+          EXISTS (
+              SELECT 1 FROM unnest(p.highlights) h WHERE LOWER(h) LIKE '%' || LOWER(c.keyword) || '%'
+          ) OR
+          EXISTS (
+              SELECT 1 FROM unnest(p.inclusions) inc WHERE LOWER(inc) LIKE '%' || LOWER(c.keyword) || '%'
+          )
+      ON CONFLICT DO NOTHING
+    `);
+  });
+
   if (ok) {
     console.log('[DB] Pricing migrations complete');
   } else {
