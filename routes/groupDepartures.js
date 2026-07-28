@@ -18,6 +18,12 @@ function mapDepartureToFrontend(row) {
     returnDate: row.return_date,
     slots: { booked: row.slots_booked, total: row.slots_total },
     priceModifier: row.price_modifier ? Number(row.price_modifier) : 0,
+    costPrice: row.cost_price ? Number(row.cost_price) : 0,
+    ctaBadge: row.cta_badge || '',
+    inclusions: row.inclusions || [],
+    exclusions: row.exclusions || [],
+    highlights: row.highlights || [],
+    itinerary: typeof row.itinerary === 'string' ? JSON.parse(row.itinerary) : (row.itinerary || []),
     status: row.status,
     notes: row.notes,
   };
@@ -68,12 +74,27 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', requirePermission('create:packages'), async (req, res, next) => {
   try {
-    const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, status, notes } = req.body;
+    const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes } = req.body;
     const result = await query(
-      `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, price_modifier, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, price_modifier, cost_price, cta_badge, inclusions, exclusions, highlights, itinerary, status, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [packageId, title, departureDate, returnDate, slotsTotal ?? 20, priceModifier ?? 0, status || 'scheduled', notes]
+      [
+        packageId,
+        title,
+        departureDate,
+        returnDate,
+        slotsTotal ?? 20,
+        priceModifier ?? 0,
+        costPrice ?? 0,
+        ctaBadge || null,
+        inclusions || [],
+        exclusions || [],
+        highlights || [],
+        JSON.stringify(itinerary || []),
+        status || 'scheduled',
+        notes
+      ]
     );
     res.status(201).json(mapDepartureToFrontend(result.rows[0]));
   } catch (error) {
@@ -84,7 +105,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
 router.put('/:id', requirePermission('write:packages'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { packageId, title, departureDate, returnDate, slotsTotal, slotsBooked, priceModifier, status, notes } = req.body;
+    const { packageId, title, departureDate, returnDate, slotsTotal, slotsBooked, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes } = req.body;
 
     const current = await query('SELECT * FROM group_departures WHERE id = $1', [id]);
     if (current.rows.length === 0) {
@@ -94,9 +115,10 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
     const result = await query(
       `UPDATE group_departures SET
         package_id = $1, title = $2, departure_date = $3, return_date = $4,
-        slots_total = $5, slots_booked = $6, price_modifier = $7,
-        status = $8, notes = $9
-       WHERE id = $10
+        slots_total = $5, slots_booked = $6, price_modifier = $7, cost_price = $8,
+        cta_badge = $9, inclusions = $10, exclusions = $11, highlights = $12,
+        itinerary = $13, status = $14, notes = $15
+       WHERE id = $16
        RETURNING *`,
       [
         packageId ?? current.rows[0].package_id,
@@ -106,6 +128,12 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         slotsTotal ?? current.rows[0].slots_total,
         slotsBooked ?? current.rows[0].slots_booked,
         priceModifier ?? current.rows[0].price_modifier,
+        costPrice ?? current.rows[0].cost_price,
+        ctaBadge ?? current.rows[0].cta_badge,
+        inclusions ?? current.rows[0].inclusions,
+        exclusions ?? current.rows[0].exclusions,
+        highlights ?? current.rows[0].highlights,
+        itinerary ? JSON.stringify(itinerary) : current.rows[0].itinerary,
         status ?? current.rows[0].status,
         notes ?? current.rows[0].notes,
         id

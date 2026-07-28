@@ -133,20 +133,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  logger.info(`Server started on port ${PORT}`);
-  console.log(`Server is running on port ${PORT}`);
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    logger.info(`Server started on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 
-  // Initialize SMTP transporter on startup
-  createTransporter().then(() => {
-    verifyConnection().then((ok) => {
-      if (ok) {
-        logger.info('SMTP ready on startup');
-      } else {
-        logger.warn('SMTP not available on startup - emails will retry via queue');
-      }
+    // Initialize SMTP transporter on startup
+    createTransporter().then(() => {
+      verifyConnection().then((ok) => {
+        if (ok) {
+          logger.info('SMTP ready on startup');
+        } else {
+          logger.warn('SMTP not available on startup - emails will retry via queue');
+        }
+      });
+    }).catch((err) => {
+      logger.error('SMTP init failed on startup', { error: err.message });
     });
-  }).catch((err) => {
-    logger.error('SMTP init failed on startup', { error: err.message });
   });
-});
+}
+
+export default app;

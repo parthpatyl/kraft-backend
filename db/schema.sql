@@ -93,6 +93,12 @@ CREATE TABLE group_departures (
     slots_total INTEGER NOT NULL DEFAULT 20,
     slots_booked INTEGER DEFAULT 0,
     price_modifier NUMERIC(12,2) DEFAULT 0,
+    cost_price NUMERIC(12,2) DEFAULT 0,
+    cta_badge VARCHAR(100),
+    inclusions TEXT[],
+    exclusions TEXT[],
+    highlights TEXT[],
+    itinerary JSONB DEFAULT '[]'::jsonb,
     status VARCHAR(50) DEFAULT 'scheduled',
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
