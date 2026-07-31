@@ -46,6 +46,15 @@ export default pool;
   await migrate('packages: tax_inclusive', () =>
     pool.query(`ALTER TABLE packages ADD COLUMN IF NOT EXISTS tax_inclusive BOOLEAN DEFAULT TRUE`)
   );
+  await migrate('packages: terms_and_conditions', () =>
+    pool.query(`ALTER TABLE packages ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT`)
+  );
+  await migrate('group_departures: terms_and_conditions', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT`)
+  );
+  await migrate('corporate_packages: terms_and_conditions', () =>
+    pool.query(`ALTER TABLE corporate_packages ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT`)
+  );
 
   await migrate('clients: wallet_balance type', async () => {
     const wbCheck = await pool.query(

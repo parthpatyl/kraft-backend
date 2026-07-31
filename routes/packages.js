@@ -47,7 +47,8 @@ function mapPackageToFrontend(row, { admin = false, financials = false, inrToUsd
     category: row.category ?? 'standard',
     categoryIds: row.category_ids || [],
     taxRate,
-    taxInclusive: row.tax_inclusive ?? true
+    taxInclusive: row.tax_inclusive ?? true,
+    termsAndConditions: row.terms_and_conditions ?? ''
   };
 
   const rate = inrToUsdRate > 0 ? inrToUsdRate : 0;
@@ -162,6 +163,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       bestMonth,
       ctaBadge,
       isBespoke,
+      termsAndConditions,
       categoryIds
     } = req.body;
 
@@ -178,8 +180,8 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
     const slots_total = slots?.total || 10;
 
     const queryText = `
-      INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, category, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, best_month, cta_badge, is_bespoke)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+      INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, category, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, best_month, cta_badge, is_bespoke, terms_and_conditions)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *
     `;
 
@@ -206,7 +208,8 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       itinerary ? JSON.stringify(itinerary) : null,
       bestMonth ?? null,
       ctaBadge ?? null,
-      isBespoke ?? false
+      isBespoke ?? false,
+      termsAndConditions ?? null
     ]);
 
     // Sync categories
@@ -254,6 +257,7 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       bestMonth,
       ctaBadge,
       isBespoke,
+      termsAndConditions,
       categoryIds
     } = req.body;
 
@@ -351,8 +355,9 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         itinerary = $19,
         best_month = $20,
         cta_badge = $21,
-        is_bespoke = $22
-      WHERE id = $23
+        is_bespoke = $22,
+        terms_and_conditions = $23
+      WHERE id = $24
       RETURNING *
     `;
 
@@ -379,6 +384,7 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       bestMonth !== undefined ? bestMonth : current.best_month,
       ctaBadge !== undefined ? ctaBadge : current.cta_badge,
       isBespoke !== undefined ? isBespoke : current.is_bespoke,
+      termsAndConditions !== undefined ? termsAndConditions : current.terms_and_conditions,
       id
     ]);
 

@@ -33,6 +33,7 @@ CREATE TABLE packages (
     best_month VARCHAR(50),
     cta_badge VARCHAR(100),
     is_bespoke BOOLEAN DEFAULT FALSE,
+    terms_and_conditions TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -101,6 +102,7 @@ CREATE TABLE group_departures (
     itinerary JSONB DEFAULT '[]'::jsonb,
     status VARCHAR(50) DEFAULT 'scheduled',
     notes TEXT,
+    terms_and_conditions TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -181,6 +183,7 @@ CREATE TABLE IF NOT EXISTS corporate_packages (
     highlights TEXT[],
     is_active BOOLEAN DEFAULT true,
     display_order INTEGER DEFAULT 0,
+    terms_and_conditions TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

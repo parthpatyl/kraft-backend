@@ -26,6 +26,7 @@ function mapDepartureToFrontend(row) {
     itinerary: typeof row.itinerary === 'string' ? JSON.parse(row.itinerary) : (row.itinerary || []),
     status: row.status,
     notes: row.notes,
+    termsAndConditions: row.terms_and_conditions || '',
   };
 }
 
@@ -74,10 +75,10 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', requirePermission('create:packages'), async (req, res, next) => {
   try {
-    const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes } = req.body;
+    const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions } = req.body;
     const result = await query(
-      `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, price_modifier, cost_price, cta_badge, inclusions, exclusions, highlights, itinerary, status, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, price_modifier, cost_price, cta_badge, inclusions, exclusions, highlights, itinerary, status, notes, terms_and_conditions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         packageId,
@@ -93,7 +94,8 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
         highlights || [],
         JSON.stringify(itinerary || []),
         status || 'scheduled',
-        notes
+        notes,
+        termsAndConditions || null
       ]
     );
     res.status(201).json(mapDepartureToFrontend(result.rows[0]));
@@ -105,7 +107,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
 router.put('/:id', requirePermission('write:packages'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { packageId, title, departureDate, returnDate, slotsTotal, slotsBooked, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes } = req.body;
+    const { packageId, title, departureDate, returnDate, slotsTotal, slotsBooked, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions } = req.body;
 
     const current = await query('SELECT * FROM group_departures WHERE id = $1', [id]);
     if (current.rows.length === 0) {
@@ -117,8 +119,8 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         package_id = $1, title = $2, departure_date = $3, return_date = $4,
         slots_total = $5, slots_booked = $6, price_modifier = $7, cost_price = $8,
         cta_badge = $9, inclusions = $10, exclusions = $11, highlights = $12,
-        itinerary = $13, status = $14, notes = $15
-       WHERE id = $16
+        itinerary = $13, status = $14, notes = $15, terms_and_conditions = $16
+       WHERE id = $17
        RETURNING *`,
       [
         packageId ?? current.rows[0].package_id,
@@ -136,6 +138,7 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         itinerary ? JSON.stringify(itinerary) : current.rows[0].itinerary,
         status ?? current.rows[0].status,
         notes ?? current.rows[0].notes,
+        termsAndConditions !== undefined ? termsAndConditions : current.rows[0].terms_and_conditions,
         id
       ]
     );
