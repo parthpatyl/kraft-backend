@@ -8,13 +8,24 @@ const router = Router();
 // GET all testimonials
 router.get('/', async (req, res, next) => {
   try {
-    const { type } = req.query;
-    const allowedTypes = ['consumer', 'corporate'];
-    const filterType = allowedTypes.includes(type) ? type : null;
-    const sql = filterType
-      ? 'SELECT * FROM testimonials WHERE type = $1 ORDER BY id ASC'
-      : 'SELECT * FROM testimonials ORDER BY id ASC';
-    const params = filterType ? [filterType] : [];
+    const { type, role, status } = req.query;
+    let sql = 'SELECT * FROM testimonials WHERE 1=1';
+    const params = [];
+
+    if (type) {
+      params.push(type);
+      sql += ` AND type = $${params.length}`;
+    }
+    if (role) {
+      params.push(role);
+      sql += ` AND role = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      sql += ` AND status = $${params.length}`;
+    }
+
+    sql += ' ORDER BY id DESC';
     const result = await query(sql, params);
     res.json(result.rows);
   } catch (error) {
@@ -22,22 +33,23 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// POST create a testimonial
-router.post('/', requirePermission('write:testimonials'), async (req, res, next) => {
+// POST public submission (unauthenticated customer & employee story upload)
+router.post('/public', async (req, res, next) => {
   try {
-    const { name, location, avatar, rating, text, images, package: pkg, type, company } = req.body;
+    const { name, location, avatar, rating, text, images, package: pkg, type, role, company } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
     }
-    if (text && text.length > 500) {
-      return res.status(400).json({ error: 'Review text must be 500 characters or fewer' });
+    if (text && text.length > 2000) {
+      return res.status(400).json({ error: 'Review text must be 2000 characters or fewer' });
     }
     if (rating !== undefined && (rating < 1 || rating > 5)) {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
+
     const result = await query(
-      `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, company)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, role, company, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         name.trim(),
@@ -48,7 +60,46 @@ router.post('/', requirePermission('write:testimonials'), async (req, res, next)
         JSON.stringify(images || []),
         pkg || '',
         type || 'consumer',
-        company || ''
+        role || 'Customer',
+        company || '',
+        'approved' // Auto-approved for immediate display, admin can moderate in dashboard
+      ]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST create a testimonial (admin endpoint)
+router.post('/', requirePermission('write:testimonials'), async (req, res, next) => {
+  try {
+    const { name, location, avatar, rating, text, images, package: pkg, type, role, company, status } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (text && text.length > 2000) {
+      return res.status(400).json({ error: 'Review text must be 2000 characters or fewer' });
+    }
+    if (rating !== undefined && (rating < 1 || rating > 5)) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    }
+    const result = await query(
+      `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, role, company, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        name.trim(),
+        location || '',
+        avatar || '',
+        rating || 5,
+        text || '',
+        JSON.stringify(images || []),
+        pkg || '',
+        type || 'consumer',
+        role || 'Customer',
+        company || '',
+        status || 'approved'
       ]
     );
     res.status(201).json(result.rows[0]);
@@ -61,10 +112,10 @@ router.post('/', requirePermission('write:testimonials'), async (req, res, next)
 router.put('/:id', requirePermission('write:testimonials'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, location, avatar, rating, text, images, package: pkg, type, company } = req.body;
+    const { name, location, avatar, rating, text, images, package: pkg, type, role, company, status } = req.body;
 
-    if (text && text.length > 500) {
-      return res.status(400).json({ error: 'Review text must be 500 characters or fewer' });
+    if (text && text.length > 2000) {
+      return res.status(400).json({ error: 'Review text must be 2000 characters or fewer' });
     }
     if (rating !== undefined && (rating < 1 || rating > 5)) {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
@@ -85,8 +136,10 @@ router.put('/:id', requirePermission('write:testimonials'), async (req, res, nex
         images = $6,
         package = $7,
         type = $8,
-        company = $9
-       WHERE id = $10
+        role = $9,
+        company = $10,
+        status = $11
+       WHERE id = $12
        RETURNING *`,
       [
         name !== undefined ? name : current.rows[0].name,
@@ -97,7 +150,9 @@ router.put('/:id', requirePermission('write:testimonials'), async (req, res, nex
         images !== undefined ? JSON.stringify(images) : current.rows[0].images,
         pkg !== undefined ? pkg : current.rows[0].package,
         type !== undefined ? type : current.rows[0].type,
+        role !== undefined ? role : (current.rows[0].role || 'Customer'),
         company !== undefined ? company : current.rows[0].company,
+        status !== undefined ? status : (current.rows[0].status || 'approved'),
         id
       ]
     );

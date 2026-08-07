@@ -123,7 +123,9 @@ CREATE TABLE testimonials (
     package VARCHAR(255),
     images JSONB DEFAULT '[]'::jsonb,
     type VARCHAR(20) DEFAULT 'consumer',
-    company VARCHAR(255)
+    company VARCHAR(255),
+    role VARCHAR(100) DEFAULT 'Customer',
+    status VARCHAR(50) DEFAULT 'approved'
 );
 
 -- Users Table (for admin auth)

@@ -304,6 +304,11 @@ export default pool;
     `);
   });
 
+  await migrate('testimonials: role & status columns', async () => {
+    await pool.query(`ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS role VARCHAR(100) DEFAULT 'Customer'`);
+    await pool.query(`ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'approved'`);
+  });
+
   if (ok) {
     console.log('[DB] Pricing migrations complete');
   } else {
