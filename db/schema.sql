@@ -59,6 +59,28 @@ CREATE TABLE clients (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Group Departures Table (fixed batch departures with shared traveller slots)
+CREATE TABLE group_departures (
+    id SERIAL PRIMARY KEY,
+    package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
+    title VARCHAR(255),
+    departure_date DATE NOT NULL,
+    return_date DATE,
+    slots_total INTEGER NOT NULL DEFAULT 20,
+    slots_booked INTEGER DEFAULT 0,
+    price_modifier NUMERIC(12,2) DEFAULT 0,
+    cost_price NUMERIC(12,2) DEFAULT 0,
+    cta_badge VARCHAR(100),
+    inclusions TEXT[],
+    exclusions TEXT[],
+    highlights TEXT[],
+    itinerary JSONB DEFAULT '[]'::jsonb,
+    status VARCHAR(50) DEFAULT 'scheduled',
+    notes TEXT,
+    terms_and_conditions TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Bookings Table
 CREATE TABLE bookings (
     id VARCHAR(50) PRIMARY KEY,
@@ -81,28 +103,6 @@ CREATE TABLE bookings (
     start_date DATE,
     end_date DATE,
     progress JSONB DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "finalPayment": false}'::jsonb,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Group Departures Table (fixed batch departures with shared traveller slots)
-CREATE TABLE group_departures (
-    id SERIAL PRIMARY KEY,
-    package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
-    title VARCHAR(255),
-    departure_date DATE NOT NULL,
-    return_date DATE,
-    slots_total INTEGER NOT NULL DEFAULT 20,
-    slots_booked INTEGER DEFAULT 0,
-    price_modifier NUMERIC(12,2) DEFAULT 0,
-    cost_price NUMERIC(12,2) DEFAULT 0,
-    cta_badge VARCHAR(100),
-    inclusions TEXT[],
-    exclusions TEXT[],
-    highlights TEXT[],
-    itinerary JSONB DEFAULT '[]'::jsonb,
-    status VARCHAR(50) DEFAULT 'scheduled',
-    notes TEXT,
-    terms_and_conditions TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS corporate_packages (
     highlights TEXT[],
     is_active BOOLEAN DEFAULT true,
     display_order INTEGER DEFAULT 0,
+    itinerary JSONB DEFAULT '[]'::jsonb,
     terms_and_conditions TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

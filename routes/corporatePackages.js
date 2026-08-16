@@ -25,6 +25,7 @@ function mapCorporateToFrontend(row) {
     imageUrl: row.image_url || '',
     isActive: row.is_active,
     displayOrder: row.display_order,
+    itinerary: typeof row.itinerary === 'string' ? JSON.parse(row.itinerary) : (row.itinerary || []),
     termsAndConditions: row.terms_and_conditions || ''
   };
 }
@@ -62,7 +63,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requirePermission('create:packages'), async (req, res, next) => {
   try {
-    const { destination, nights, startingPrice, category, imageUrl, description, highlights, termsAndConditions } = req.body;
+    const { destination, nights, startingPrice, category, imageUrl, description, highlights, itinerary, termsAndConditions } = req.body;
     if (!destination || !destination.trim()) {
       return res.status(400).json({ error: 'Destination is required' });
     }
@@ -70,8 +71,8 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       return res.status(400).json({ error: 'Category must be india or international' });
     }
     const result = await query(
-      `INSERT INTO corporate_packages (destination, nights, starting_price, category, image_url, description, highlights, terms_and_conditions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO corporate_packages (destination, nights, starting_price, category, image_url, description, highlights, itinerary, terms_and_conditions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         destination.trim(),
@@ -81,6 +82,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
         imageUrl || '',
         description || '',
         highlights || [],
+        JSON.stringify(itinerary || []),
         termsAndConditions || null
       ]
     );
@@ -93,7 +95,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
 router.put('/:id', requirePermission('write:packages'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { destination, nights, startingPrice, category, imageUrl, description, highlights, isActive, displayOrder, termsAndConditions } = req.body;
+    const { destination, nights, startingPrice, category, imageUrl, description, highlights, itinerary, isActive, displayOrder, termsAndConditions } = req.body;
 
     if (category !== undefined && !['india', 'international'].includes(category)) {
       return res.status(400).json({ error: 'Category must be india or international' });
@@ -108,9 +110,9 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       `UPDATE corporate_packages SET
         destination = $1, nights = $2, starting_price = $3,
         category = $4, image_url = $5, description = $6,
-        highlights = $7, is_active = $8, display_order = $9,
-        terms_and_conditions = $10
-       WHERE id = $11
+        highlights = $7, itinerary = $8, is_active = $9, display_order = $10,
+        terms_and_conditions = $11
+       WHERE id = $12
        RETURNING *`,
       [
         destination !== undefined ? destination : current.rows[0].destination,
@@ -120,6 +122,7 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         imageUrl !== undefined ? imageUrl : current.rows[0].image_url,
         description !== undefined ? description : current.rows[0].description,
         highlights !== undefined ? highlights : current.rows[0].highlights,
+        itinerary ? JSON.stringify(itinerary) : current.rows[0].itinerary,
         isActive !== undefined ? isActive : current.rows[0].is_active,
         displayOrder !== undefined ? displayOrder : current.rows[0].display_order,
         termsAndConditions !== undefined ? termsAndConditions : current.rows[0].terms_and_conditions,
