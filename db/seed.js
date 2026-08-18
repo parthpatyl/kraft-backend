@@ -1,5 +1,4 @@
-import { query } from './index.js';
-import pool from './index.js';
+import pool, { query, migrationsReady } from './index.js';
 import bcrypt from 'bcryptjs';
 
 const initialPackages = [];
@@ -34,6 +33,7 @@ const initialTestimonials = [];
 
 async function seed() {
   try {
+    await migrationsReady;
     console.log('Running schema migrations...');
     await query(`
       DO $$ BEGIN
@@ -169,8 +169,7 @@ async function seed() {
       );
     `);
 
-    console.log('Clearing database tables...');
-    await query('TRUNCATE packages, clients, bookings, testimonials RESTART IDENTITY CASCADE');
+    console.log('Running non-destructive seeding (preserving all existing database records)...');
 
     console.log('Seeding packages...');
     for (const pkg of initialPackages) {
@@ -208,7 +207,7 @@ async function seed() {
           pkg.region,
           pkg.category ?? 'standard',
           0,
-          pkg.slots.total,
+          pkg.slots?.total ?? 10,
           pkg.trend,
           JSON.stringify(pkg.inclusionsSelection),
           pkg.heroImage,
@@ -338,38 +337,47 @@ async function seed() {
     );
 
     console.log('Seeding testimonials...');
-    // Clear old testimonials since it uses auto-increment id
-    await query('TRUNCATE testimonials RESTART IDENTITY');
     for (const testimonial of initialTestimonials) {
-      await query(
-        `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, company)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          testimonial.name,
-          testimonial.location,
-          testimonial.avatar,
-          testimonial.rating,
-          testimonial.text,
-          JSON.stringify(testimonial.images || []),
-          testimonial.package,
-          testimonial.type || 'consumer',
-          testimonial.company || ''
-        ]
+      const exists = await query(
+        'SELECT id FROM testimonials WHERE name = $1 AND text = $2 LIMIT 1',
+        [testimonial.name, testimonial.text]
       );
+      if (exists.rows.length === 0) {
+        await query(
+          `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, company)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            testimonial.name,
+            testimonial.location,
+            testimonial.avatar,
+            testimonial.rating,
+            testimonial.text,
+            JSON.stringify(testimonial.images || []),
+            testimonial.package,
+            testimonial.type || 'consumer',
+            testimonial.company || ''
+          ]
+        );
+      }
     }
 
     console.log('Seeding corporate packages...');
     const corporatePackages = [];
-    await query('TRUNCATE corporate_packages RESTART IDENTITY');
     for (const pkg of corporatePackages) {
-      await query(
-        `INSERT INTO corporate_packages (destination, nights, starting_price, category, description)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [pkg.destination, pkg.nights, pkg.startingPrice, pkg.category, pkg.description]
+      const exists = await query(
+        'SELECT id FROM corporate_packages WHERE destination = $1 AND category = $2 LIMIT 1',
+        [pkg.destination, pkg.category]
       );
+      if (exists.rows.length === 0) {
+        await query(
+          `INSERT INTO corporate_packages (destination, nights, starting_price, category, description)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [pkg.destination, pkg.nights, pkg.startingPrice, pkg.category, pkg.description]
+        );
+      }
     }
 
-    console.log('Database seeded successfully!');
+    console.log('Database non-destructive seeding completed successfully!');
   } catch (error) {
     console.error('Error seeding database:', error);
   } finally {

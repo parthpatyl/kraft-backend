@@ -75,7 +75,10 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', requirePermission('create:packages'), async (req, res, next) => {
   try {
-    const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions } = req.body;
+    const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions, slots } = req.body;
+    const finalSlotsTotal = slotsTotal ?? slots?.total ?? 20;
+    const finalItinerary = typeof itinerary === 'string' ? itinerary : JSON.stringify(itinerary || []);
+
     const result = await query(
       `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, price_modifier, cost_price, cta_badge, inclusions, exclusions, highlights, itinerary, status, notes, terms_and_conditions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
@@ -85,16 +88,16 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
         title,
         departureDate,
         returnDate,
-        slotsTotal ?? 20,
+        finalSlotsTotal,
         priceModifier ?? 0,
         costPrice ?? 0,
         ctaBadge || null,
         inclusions || [],
         exclusions || [],
         highlights || [],
-        JSON.stringify(itinerary || []),
+        finalItinerary,
         status || 'scheduled',
-        notes,
+        notes || null,
         termsAndConditions || null
       ]
     );
@@ -107,12 +110,18 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
 router.put('/:id', requirePermission('write:packages'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { packageId, title, departureDate, returnDate, slotsTotal, slotsBooked, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions } = req.body;
+    const { packageId, title, departureDate, returnDate, slotsTotal, slotsBooked, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions, slots } = req.body;
 
     const current = await query('SELECT * FROM group_departures WHERE id = $1', [id]);
     if (current.rows.length === 0) {
       return res.status(404).json({ error: 'Departure not found' });
     }
+
+    const finalSlotsTotal = slotsTotal ?? slots?.total ?? current.rows[0].slots_total;
+    const finalSlotsBooked = slotsBooked ?? slots?.booked ?? current.rows[0].slots_booked;
+    const finalItinerary = itinerary !== undefined 
+      ? (typeof itinerary === 'string' ? itinerary : JSON.stringify(itinerary || []))
+      : current.rows[0].itinerary;
 
     const result = await query(
       `UPDATE group_departures SET
@@ -127,17 +136,17 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         title ?? current.rows[0].title,
         departureDate ?? current.rows[0].departure_date,
         returnDate ?? current.rows[0].return_date,
-        slotsTotal ?? current.rows[0].slots_total,
-        slotsBooked ?? current.rows[0].slots_booked,
+        finalSlotsTotal,
+        finalSlotsBooked,
         priceModifier ?? current.rows[0].price_modifier,
         costPrice ?? current.rows[0].cost_price,
-        ctaBadge ?? current.rows[0].cta_badge,
+        ctaBadge !== undefined ? ctaBadge : current.rows[0].cta_badge,
         inclusions ?? current.rows[0].inclusions,
         exclusions ?? current.rows[0].exclusions,
         highlights ?? current.rows[0].highlights,
-        itinerary ? JSON.stringify(itinerary) : current.rows[0].itinerary,
+        finalItinerary,
         status ?? current.rows[0].status,
-        notes ?? current.rows[0].notes,
+        notes !== undefined ? notes : current.rows[0].notes,
         termsAndConditions !== undefined ? termsAndConditions : current.rows[0].terms_and_conditions,
         id
       ]

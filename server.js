@@ -55,10 +55,18 @@ if (isSecretWeak) {
 
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+// CORS — robust cross-origin support for both customer site and admin dashboard
+const corsOptions = {
+  origin: true, // Dynamically allow request origin
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Range'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Authorization'],
+  maxAge: 86400 // Cache preflight for 24 hours
+};
 
-// CORS — allow both frontend origins
-app.use(cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
@@ -127,6 +135,9 @@ app.get('/api/health', async (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
   logger.error('API Error', { error: err.message, stack: err.stack, method: req.method, url: req.url });
   res.status(err.status || 500).json({
     error: err.message || 'Internal Server Error'

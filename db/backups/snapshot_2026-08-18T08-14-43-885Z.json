@@ -1,0 +1,361 @@
+{
+  "exportedAt": "2026-08-18T08:14:43.886Z",
+  "source": "Local/Connected PostgreSQL DB",
+  "packages": [
+    {
+      "id": "PKG-SWISS-ALPS-01",
+      "name": "Swiss Alps & Glacier Wonders Odyssey",
+      "duration": "7 Days / 6 Nights",
+      "base_price": "185000",
+      "cost_price": "140000.00",
+      "tax_rate": "5.0",
+      "tax_inclusive": true,
+      "region": "Europe",
+      "category": "standard",
+      "slots_booked": 3,
+      "slots_total": 25,
+      "trend": "Best Seller",
+      "inclusions_selection": null,
+      "hero_image": "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?q=80&w=1200",
+      "card_image": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600",
+      "description": "Experience the majestic beauty of the Swiss Alps, from Zurich to the snow-capped peaks of Jungfraujoch and the scenic Glacier Express through Zermatt.",
+      "highlights": [
+        "Scenic journey on the Glacier Express panorama train",
+        "Summit excursion to Jungfraujoch — Top of Europe (3,454m)",
+        "Walking tour of historic Lucerne and Chapel Bridge",
+        "Lake Geneva sunset catamaran cruise with Swiss fondue dinner"
+      ],
+      "inclusions": [
+        "4-Star premium alpine hotel accommodations (6 Nights)",
+        "Daily Swiss buffet breakfasts & 4 curated regional dinners",
+        "Swiss Travel Pass (1st Class) with panoramic Glacier Express reservation",
+        "All mountain railway & cable car passes (Jungfraujoch, Titlis, Matterhorn Glacier Paradise)",
+        "Dedicated English-speaking professional tour director"
+      ],
+      "exclusions": [
+        "International roundtrip airfare",
+        "Schengen visa processing fees",
+        "Personal expenses & optional adventure activities (paragliding, helicopter tour)",
+        "Travel and medical insurance"
+      ],
+      "itinerary": [
+        {
+          "day": 1,
+          "desc": "Arrive at Zurich Airport (ZRH). Meet your tour manager and take a scenic 1st class train to Lucerne. Enjoy an evening welcome orientation and a stroll along the historic Chapel Bridge.",
+          "title": "Arrival in Zurich & Transfer to Lucerne"
+        },
+        {
+          "day": 2,
+          "desc": "Ascend Mount Titlis aboard the world's first revolving cable car, the Titlis Rotair. Walk across the Titlis Cliff Walk suspension bridge and explore the illuminated Glacier Cave.",
+          "title": "Mount Titlis Glacier & Rotair Cable Car"
+        },
+        {
+          "day": 3,
+          "desc": "Travel through the Bernese Oberland to Lauterbrunnen. Board the cogwheel railway to Jungfraujoch (3,454m). Visit the Sphinx Observatory and Ice Palace.",
+          "title": "Interlaken & Journey to Jungfraujoch — Top of Europe"
+        },
+        {
+          "day": 4,
+          "desc": "Board the world-famous Glacier Express for a breathtaking 4.5-hour journey over 291 bridges and through 91 tunnels. Arrive in the car-free mountain haven of Zermatt.",
+          "title": "Glacier Express Panorama Train to Zermatt"
+        },
+        {
+          "day": 5,
+          "desc": "Take Europe's highest 3S cableway to Matterhorn Glacier Paradise (3,883m) for 360-degree panoramic views of 38 alpine peaks across Switzerland, Italy, and France.",
+          "title": "Matterhorn Glacier Paradise & Alpine Hike"
+        },
+        {
+          "day": 6,
+          "desc": "Travel west to Montreux along the Swiss Riviera. Visit the medieval Château de Chillon on Lake Geneva and savor an authentic Swiss cheese fondue dinner.",
+          "title": "Lake Geneva, Montreux & Chillon Castle"
+        },
+        {
+          "day": 7,
+          "desc": "Morning leisure stroll along Lake Geneva's promenade. Guided group transfer to Geneva International Airport (GVA) for your return flight home.",
+          "title": "Geneva Departure & Homeward Bound"
+        }
+      ],
+      "best_month": "May - Oct",
+      "cta_badge": "Popular Choice",
+      "is_bespoke": false,
+      "terms_and_conditions": "### Booking & Cancellation Terms\n- **Deposit**: 30% advance required upon confirmation.\n- **Cancellation**: Full refund up to 30 days prior to departure; 50% refund between 15-29 days; non-refundable within 14 days.\n- **Passports**: Must be valid for at least 6 months beyond the travel dates.",
+      "created_at": "2026-08-14T14:34:39.698Z"
+    },
+    {
+      "id": "PKG-419ca801-c01c-49e6-bd3e-e5123129fcfa",
+      "name": "Explore Vietnam",
+      "duration": "10 Days",
+      "base_price": "166000",
+      "cost_price": null,
+      "tax_rate": "5.0",
+      "tax_inclusive": true,
+      "region": "Asia",
+      "category": "standard",
+      "slots_booked": 0,
+      "slots_total": 15,
+      "trend": "New",
+      "inclusions_selection": {
+        "guide": true,
+        "hotel": true,
+        "cruise": false,
+        "flight": true,
+        "sightseeing": true,
+        "airportTransfer": true
+      },
+      "hero_image": "https://kraft-backend-ndss.onrender.com/assets/unsplash-pkg-hero.jpg",
+      "card_image": "https://kraft-backend-ndss.onrender.com/assets/unsplash-pkg-card.jpg",
+      "description": "Vietnam is a Southeast Asian country known for its rich history, diverse culture, and stunning landscapes. It has a long\ncoastline, vibrant cities like Hanoi and Ho Chi Minh City, and is famous for its cuisine and historical sites. Today, it is a\npopular tourist destination, offering a mix of natural beauty, ancient heritage, and modern growth. ",
+      "highlights": [
+        "Main and Internal Flights are Included (as per Base Fare). – from Mumbai",
+        "4* Accommodation in above mentioned hotels on Double / Twin sharing basis.",
+        "All transfers and sightseeing tours on Private basis (45-seater bus) unless specified as SIC",
+        "Accommodation on twin/triple-share basis with daily breakfast (Check-in: 15:00 | Check-out: 12:00)",
+        "English Speaking Guide as per itinerary",
+        "All entrance fees as per itinerary",
+        "Meals as mentioned in programme: B = Breakfast, L = Lunch, D = Dinner",
+        "2 bottles of 500ml drinking water per person per day",
+        "Compulsory Tip for Driver & Guide",
+        "Vietnam e-Visa (Single entry, 1 month"
+      ],
+      "inclusions": [],
+      "exclusions": [],
+      "itinerary": [
+        {
+          "day": 1,
+          "desc": "Our English-speaking guide will meet and welcome you at the international airport and transfer you to the city\ncentre.\n\nEnjoy breakfast at an Indian Restaurant. Then explore the city's historic landmarks with your guide:\n• Presidential Palace – Headquarters of the Saigon Government during the Vietnam-American War\n• Notre Dame Cathedral (from outside only) – A magnificent red brick building with twin spires inspired by the\noriginal in Paris\n• Central Post Office – Designed by French architect Gustave Eiffel\n\nAfter the tour, transfer to hotel for check-in.\nCheck-in Time: 15:00 hrs. Early check-in subject to availability with surcharge.\n\nMeals: Breakfast, Lunch & Dinner at Indian Restaurant (restaurant chosen by us)\nGuide: English Speaking Guide\nOvernight stay in Ho Chi Minh City.",
+          "title": "ARRIVAL HO CHI MINH CITY | HALF DAY CITY TOUR"
+        },
+        {
+          "day": 2,
+          "desc": "Take the morning flight to Da Nang. Upon arrival, transfer to hotel for check-in. Begin city tour visiting the 4 famous bridges:\n\n• Han River Bridge – The first swing bridge built by Vietnamese architects (1997), a symbol of the city's\nemergence\n• Tran Thi Ly Bridge – The bridge's elegant pylon and deck change colours at night creating an iconic\nlandmark\n• Dragon Bridge – Every weekend at 9:00 PM the dragon breathes fire and water (visit by own arrangement)\n• Love Lock Bridge – Enchanting at night with thousands of heart-shaped red lanterns\nContinue to Son Tra Peninsula (Monkey Mountain) to visit the Linh Ung Bai But Pagoda, home to the tallest Lady\nBuddha statue in Vietnam, and the beautiful My Khe Beach.\n\nMeals: Breakfast at hotel, Lunch & Dinner at Indian Restaurant\nGuide: English Speaking Guide\nOvernight stay in Da Nang.",
+          "title": "FLIGHT TO DA NANG | HALF DAY CITY TOUR"
+        }
+      ],
+      "best_month": "",
+      "cta_badge": "",
+      "is_bespoke": false,
+      "terms_and_conditions": "",
+      "created_at": "2026-08-18T08:14:00.130Z"
+    }
+  ],
+  "specialityCategories": [
+    {
+      "id": "adventure",
+      "name": "Adventure",
+      "subtitle": "Thrilling treks & expeditions",
+      "keyword": "Adventure",
+      "icon_name": "Compass",
+      "icon_color": "text-blue-600",
+      "icon_bg": "bg-blue-50",
+      "accent_color": "text-blue-400 group-hover:text-blue-300",
+      "default_count": 24,
+      "sort_order": 1,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.624Z"
+    },
+    {
+      "id": "wellness",
+      "name": "Wellness",
+      "subtitle": "Rejuvenate mind & body",
+      "keyword": "Wellness",
+      "icon_name": "Sparkles",
+      "icon_color": "text-teal-600",
+      "icon_bg": "bg-teal-50",
+      "accent_color": "text-teal-400 group-hover:text-teal-300",
+      "default_count": 18,
+      "sort_order": 2,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.625Z"
+    },
+    {
+      "id": "honeymoon",
+      "name": "Honeymoon",
+      "subtitle": "Romantic getaways",
+      "keyword": "Honeymoon",
+      "icon_name": "Heart",
+      "icon_color": "text-rose-500",
+      "icon_bg": "bg-rose-50",
+      "accent_color": "text-rose-400 group-hover:text-rose-300",
+      "default_count": 31,
+      "sort_order": 3,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.626Z"
+    },
+    {
+      "id": "wildlife",
+      "name": "Wildlife",
+      "subtitle": "Safari & nature tours",
+      "keyword": "Wildlife",
+      "icon_name": "Binoculars",
+      "icon_color": "text-emerald-600",
+      "icon_bg": "bg-emerald-50",
+      "accent_color": "text-emerald-400 group-hover:text-emerald-300",
+      "default_count": 15,
+      "sort_order": 4,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.626Z"
+    },
+    {
+      "id": "culinary",
+      "name": "Culinary",
+      "subtitle": "Taste the world",
+      "keyword": "Culinary",
+      "icon_name": "Utensils",
+      "icon_color": "text-amber-600",
+      "icon_bg": "bg-amber-50",
+      "accent_color": "text-amber-400 group-hover:text-amber-300",
+      "default_count": 22,
+      "sort_order": 5,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.627Z"
+    },
+    {
+      "id": "cruises",
+      "name": "Cruises",
+      "subtitle": "Sail the seas in style",
+      "keyword": "Cruise",
+      "icon_name": "Ship",
+      "icon_color": "text-sky-600",
+      "icon_bg": "bg-sky-50",
+      "accent_color": "text-sky-400 group-hover:text-sky-300",
+      "default_count": 9,
+      "sort_order": 6,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.627Z"
+    },
+    {
+      "id": "photography",
+      "name": "Photography",
+      "subtitle": "Capture stunning moments",
+      "keyword": "Photography",
+      "icon_name": "Camera",
+      "icon_color": "text-purple-600",
+      "icon_bg": "bg-purple-50",
+      "accent_color": "text-purple-400 group-hover:text-purple-300",
+      "default_count": 11,
+      "sort_order": 7,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.627Z"
+    },
+    {
+      "id": "group-tours",
+      "name": "Group Tours",
+      "subtitle": "Travel with like-minded people",
+      "keyword": "Group",
+      "icon_name": "Users",
+      "icon_color": "text-indigo-600",
+      "icon_bg": "bg-indigo-50",
+      "accent_color": "text-indigo-400 group-hover:text-indigo-300",
+      "default_count": 27,
+      "sort_order": 8,
+      "is_active": true,
+      "created_at": "2026-08-14T14:24:47.628Z"
+    }
+  ],
+  "packageSpecialityCategories": [
+    {
+      "package_id": "PKG-SWISS-ALPS-01",
+      "category_id": "cruises"
+    },
+    {
+      "package_id": "PKG-419ca801-c01c-49e6-bd3e-e5123129fcfa",
+      "category_id": "adventure"
+    },
+    {
+      "package_id": "PKG-419ca801-c01c-49e6-bd3e-e5123129fcfa",
+      "category_id": "group-tours"
+    },
+    {
+      "package_id": "PKG-419ca801-c01c-49e6-bd3e-e5123129fcfa",
+      "category_id": "honeymoon"
+    }
+  ],
+  "groupDepartures": [
+    {
+      "id": 1,
+      "package_id": "PKG-SWISS-ALPS-01",
+      "title": "Swiss Alps Autumn Panorama — Oct 2026 Batch",
+      "departure_date": "2026-10-09T18:30:00.000Z",
+      "return_date": "2026-10-15T18:30:00.000Z",
+      "slots_total": 20,
+      "slots_booked": 0,
+      "price_modifier": "5000.00",
+      "cost_price": "142000.00",
+      "cta_badge": "Guaranteed Departure",
+      "inclusions": [
+        "4-Star Hotels",
+        "Daily Breakfast & Dinner",
+        "Swiss Pass 1st Class",
+        "Jungfraujoch & Titlis Tickets",
+        "Dedicated Tour Manager"
+      ],
+      "exclusions": [
+        "International Flights",
+        "Schengen Visa",
+        "Travel Insurance",
+        "Personal Shopping"
+      ],
+      "highlights": [],
+      "itinerary": [
+        {
+          "day": 1,
+          "desc": "Flight arrival at Zurich Airport (ZRH) by 11:00 AM. Group coach transfer to Lucerne 4-star hotel. Evening welcome dinner on Lake Lucerne.",
+          "title": "Arrival in Zurich & Transfer to Lucerne"
+        },
+        {
+          "day": 2,
+          "desc": "Morning ascent to Mt. Titlis with private guide. Afternoon Lucerne Old Town walking tour and lake promenade stroll.",
+          "title": "Mt. Titlis Rotating Cable Car & Cliff Walk"
+        },
+        {
+          "day": 3,
+          "desc": "Full-day excursion to Jungfraujoch (3,454m) with cogwheel train ride and panoramic lunch at the Top of Europe summit.",
+          "title": "Jungfraujoch Summit Excursion"
+        },
+        {
+          "day": 4,
+          "desc": "Exclusive panoramic coach reserved on the Glacier Express to Zermatt under the Matterhorn.",
+          "title": "Glacier Express Panorama Ride to Zermatt"
+        },
+        {
+          "day": 5,
+          "desc": "Morning cable car ride to 3,883m Matterhorn Glacier Paradise. Afternoon chocolate & cheese tasting in Zermatt village.",
+          "title": "Matterhorn Glacier Paradise Exploration"
+        },
+        {
+          "day": 6,
+          "desc": "Scenic rail transfer to Lake Geneva. Private guided tour of Chillon Castle followed by lakeside fondue evening.",
+          "title": "Montreux, Chillon Castle & Fondue Dinner"
+        },
+        {
+          "day": 7,
+          "desc": "Group transfer to Geneva Airport (GVA) for flights departing after 2:00 PM.",
+          "title": "Geneva Airport Drop-off & Departure"
+        }
+      ],
+      "status": "scheduled",
+      "notes": "Direct group flight on Swiss International Air Lines (SWISS) from Mumbai/Delhi available. Tour manager joins at Zurich airport.",
+      "terms_and_conditions": "### Group Departure Terms\n- **Minimum Group Size**: 10 passengers (Status: Guaranteed).\n- **Baggage Allowance**: 1 check-in bag (23kg) + 1 cabin bag (7kg) per guest.\n- **Payment Schedule**: 50% due 45 days prior, final balance due 21 days prior to departure.",
+      "created_at": "2026-08-14T14:34:39.731Z"
+    }
+  ],
+  "corporatePackages": [],
+  "corporateClients": [],
+  "testimonials": [],
+  "settings": [
+    {
+      "key": "agency_settings",
+      "value": {
+        "apis": null,
+        "agencyName": "",
+        "agencyEmail": "",
+        "agencyPhone": "",
+        "permissions": null,
+        "inrToUsdRate": 0,
+        "agencyAddress": "",
+        "defaultMarkup": 15,
+        "defaultAgentSplit": 40
+      }
+    }
+  ]
+}

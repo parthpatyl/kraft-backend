@@ -22,7 +22,7 @@ export const getClient = () => pool.connect();
 export default pool;
 
 // Auto-migrations: run on startup to add columns that may not exist in legacy DBs
-(async () => {
+export const migrationsReady = (async () => {
   let ok = true;
   const migrate = async (label, fn) => {
     try {

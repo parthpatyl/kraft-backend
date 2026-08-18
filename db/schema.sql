@@ -1,15 +1,8 @@
 -- schema.sql
--- Create Kraft Your Trip Database Schema
-
-DROP TABLE IF EXISTS group_departures CASCADE;
-DROP TABLE IF EXISTS bookings CASCADE;
-DROP TABLE IF EXISTS clients CASCADE;
-DROP TABLE IF EXISTS packages CASCADE;
-DROP TABLE IF EXISTS settings CASCADE;
-DROP TABLE IF EXISTS testimonials CASCADE;
+-- Create Kraft Your Trip Database Schema (Safe, Idempotent, Non-Destructive)
 
 -- Packages Table
-CREATE TABLE packages (
+CREATE TABLE IF NOT EXISTS packages (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     duration VARCHAR(50) NOT NULL,
@@ -38,7 +31,7 @@ CREATE TABLE packages (
 );
 
 -- Clients Table
-CREATE TABLE clients (
+CREATE TABLE IF NOT EXISTS clients (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -60,7 +53,7 @@ CREATE TABLE clients (
 );
 
 -- Group Departures Table (fixed batch departures with shared traveller slots)
-CREATE TABLE group_departures (
+CREATE TABLE IF NOT EXISTS group_departures (
     id SERIAL PRIMARY KEY,
     package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
     title VARCHAR(255),
@@ -82,7 +75,7 @@ CREATE TABLE group_departures (
 );
 
 -- Bookings Table
-CREATE TABLE bookings (
+CREATE TABLE IF NOT EXISTS bookings (
     id VARCHAR(50) PRIMARY KEY,
     client_name VARCHAR(255) NOT NULL,
     client_id VARCHAR(50) REFERENCES clients(id) ON DELETE SET NULL,
@@ -107,13 +100,13 @@ CREATE TABLE bookings (
 );
 
 -- Settings Table
-CREATE TABLE settings (
+CREATE TABLE IF NOT EXISTS settings (
     key VARCHAR(50) PRIMARY KEY,
     value JSONB NOT NULL
 );
 
 -- Testimonials Table
-CREATE TABLE testimonials (
+CREATE TABLE IF NOT EXISTS testimonials (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     location VARCHAR(255),
@@ -129,7 +122,7 @@ CREATE TABLE testimonials (
 );
 
 -- Users Table (for admin auth)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -141,7 +134,7 @@ CREATE TABLE users (
 );
 
 -- Notifications Table
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     message TEXT NOT NULL,
     type VARCHAR(20) DEFAULT 'system',
@@ -153,7 +146,7 @@ CREATE TABLE notifications (
 );
 
 -- Approvals Table (for operations actions needing admin sign-off)
-CREATE TABLE approvals (
+CREATE TABLE IF NOT EXISTS approvals (
     id TEXT PRIMARY KEY,
     action TEXT NOT NULL,
     entity_type TEXT NOT NULL,

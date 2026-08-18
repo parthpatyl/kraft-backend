@@ -1,0 +1,74 @@
+{
+  "exportedAt": "2026-08-18T08:13:12.376Z",
+  "source": "Remote API: https://kraft-backend-ndss.onrender.com",
+  "packages": [
+    {
+      "id": "PKG-419ca801-c01c-49e6-bd3e-e5123129fcfa",
+      "name": "Explore Vietnam",
+      "duration": "10 Days",
+      "region": "Asia",
+      "slots": {
+        "booked": 0,
+        "total": 15
+      },
+      "trend": "New",
+      "inclusionsSelection": {
+        "guide": true,
+        "hotel": true,
+        "cruise": false,
+        "flight": true,
+        "sightseeing": true,
+        "airportTransfer": true
+      },
+      "heroImage": "https://kraft-backend-ndss.onrender.com/assets/unsplash-pkg-hero.jpg",
+      "cardImage": "https://kraft-backend-ndss.onrender.com/assets/unsplash-pkg-card.jpg",
+      "description": "Vietnam is a Southeast Asian country known for its rich history, diverse culture, and stunning landscapes. It has a long\ncoastline, vibrant cities like Hanoi and Ho Chi Minh City, and is famous for its cuisine and historical sites. Today, it is a\npopular tourist destination, offering a mix of natural beauty, ancient heritage, and modern growth. ",
+      "highlights": [
+        "Main and Internal Flights are Included (as per Base Fare). – from Mumbai",
+        "4* Accommodation in above mentioned hotels on Double / Twin sharing basis.",
+        "All transfers and sightseeing tours on Private basis (45-seater bus) unless specified as SIC",
+        "Accommodation on twin/triple-share basis with daily breakfast (Check-in: 15:00 | Check-out: 12:00)",
+        "English Speaking Guide as per itinerary",
+        "All entrance fees as per itinerary",
+        "Meals as mentioned in programme: B = Breakfast, L = Lunch, D = Dinner",
+        "2 bottles of 500ml drinking water per person per day",
+        "Compulsory Tip for Driver & Guide",
+        "Vietnam e-Visa (Single entry, 1 month"
+      ],
+      "inclusions": [],
+      "exclusions": [],
+      "itinerary": [
+        {
+          "day": 1,
+          "desc": "Our English-speaking guide will meet and welcome you at the international airport and transfer you to the city\ncentre.\n\nEnjoy breakfast at an Indian Restaurant. Then explore the city's historic landmarks with your guide:\n• Presidential Palace – Headquarters of the Saigon Government during the Vietnam-American War\n• Notre Dame Cathedral (from outside only) – A magnificent red brick building with twin spires inspired by the\noriginal in Paris\n• Central Post Office – Designed by French architect Gustave Eiffel\n\nAfter the tour, transfer to hotel for check-in.\nCheck-in Time: 15:00 hrs. Early check-in subject to availability with surcharge.\n\nMeals: Breakfast, Lunch & Dinner at Indian Restaurant (restaurant chosen by us)\nGuide: English Speaking Guide\nOvernight stay in Ho Chi Minh City.",
+          "title": "ARRIVAL HO CHI MINH CITY | HALF DAY CITY TOUR"
+        },
+        {
+          "day": 2,
+          "desc": "Take the morning flight to Da Nang. Upon arrival, transfer to hotel for check-in. Begin city tour visiting the 4 famous bridges:\n\n• Han River Bridge – The first swing bridge built by Vietnamese architects (1997), a symbol of the city's\nemergence\n• Tran Thi Ly Bridge – The bridge's elegant pylon and deck change colours at night creating an iconic\nlandmark\n• Dragon Bridge – Every weekend at 9:00 PM the dragon breathes fire and water (visit by own arrangement)\n• Love Lock Bridge – Enchanting at night with thousands of heart-shaped red lanterns\nContinue to Son Tra Peninsula (Monkey Mountain) to visit the Linh Ung Bai But Pagoda, home to the tallest Lady\nBuddha statue in Vietnam, and the beautiful My Khe Beach.\n\nMeals: Breakfast at hotel, Lunch & Dinner at Indian Restaurant\nGuide: English Speaking Guide\nOvernight stay in Da Nang.",
+          "title": "FLIGHT TO DA NANG | HALF DAY CITY TOUR"
+        }
+      ],
+      "bestMonth": "",
+      "ctaBadge": "",
+      "isBespoke": false,
+      "category": "standard",
+      "categoryIds": [
+        "adventure",
+        "group-tours",
+        "honeymoon"
+      ],
+      "taxRate": null,
+      "taxInclusive": true,
+      "termsAndConditions": "",
+      "price": 166000
+    }
+  ],
+  "specialityCategories": [],
+  "packageSpecialityCategories": [],
+  "groupDepartures": [],
+  "corporatePackages": [],
+  "corporateClients": [],
+  "testimonials": [],
+  "settings": []
+}

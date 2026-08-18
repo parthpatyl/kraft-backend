@@ -8,10 +8,15 @@ router.use(requireAuth);
 
 router.get('/', async (req, res, next) => {
   try {
-    const result = await query(
-      'SELECT * FROM notifications WHERE user_id IS NULL OR user_id = $1 ORDER BY created_at DESC LIMIT 50',
-      [req.user.id]
-    );
+    const userId = Number.isInteger(Number(req.user?.id)) ? parseInt(req.user.id, 10) : null;
+    const result = userId
+      ? await query(
+          'SELECT * FROM notifications WHERE user_id IS NULL OR user_id = $1 ORDER BY created_at DESC LIMIT 50',
+          [userId]
+        )
+      : await query(
+          'SELECT * FROM notifications WHERE user_id IS NULL ORDER BY created_at DESC LIMIT 50'
+        );
     res.json(result.rows);
   } catch (err) {
     next(err);
@@ -37,7 +42,12 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/read-all', async (req, res, next) => {
   try {
-    await query('UPDATE notifications SET read = TRUE WHERE read = FALSE AND (user_id IS NULL OR user_id = $1)', [req.user.id]);
+    const userId = Number.isInteger(Number(req.user?.id)) ? parseInt(req.user.id, 10) : null;
+    if (userId) {
+      await query('UPDATE notifications SET read = TRUE WHERE read = FALSE AND (user_id IS NULL OR user_id = $1)', [userId]);
+    } else {
+      await query('UPDATE notifications SET read = TRUE WHERE read = FALSE AND user_id IS NULL');
+    }
     res.json({ message: 'All marked as read' });
   } catch (err) {
     next(err);
@@ -46,7 +56,10 @@ router.patch('/read-all', async (req, res, next) => {
 
 router.delete('/clear-all', async (req, res, next) => {
   try {
-    await query('DELETE FROM notifications WHERE user_id = $1', [req.user.id]);
+    const userId = Number.isInteger(Number(req.user?.id)) ? parseInt(req.user.id, 10) : null;
+    if (userId) {
+      await query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+    }
     res.json({ message: 'All notifications cleared' });
   } catch (err) {
     next(err);

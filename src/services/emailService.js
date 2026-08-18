@@ -47,14 +47,21 @@ export async function createTransporter() {
 
 export async function verifyConnection() {
   try {
+    if (!emailConfig.host || !emailConfig.auth?.user || emailConfig.auth?.user === 'placeholder') {
+      return false;
+    }
     if (!transporter) {
       await createTransporter();
     }
-    await transporter.verify();
+    const verifyPromise = transporter.verify();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('SMTP verify timeout (2500ms)')), 2500)
+    );
+    await Promise.race([verifyPromise, timeoutPromise]);
     logger.info('SMTP Connection Verified Successfully');
     return true;
   } catch (err) {
-    logger.error('SMTP Connection Verification Failed', {
+    logger.warn('SMTP Connection Verification Failed', {
       error: err.message,
       code: err.code,
     });
