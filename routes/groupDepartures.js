@@ -82,7 +82,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
     const result = await query(
       `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, price_modifier, cost_price, cta_badge, inclusions, exclusions, highlights, itinerary, status, notes, terms_and_conditions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-       RETURNING *`,
+       RETURNING id`,
       [
         packageId,
         title,
@@ -101,7 +101,20 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
         termsAndConditions || null
       ]
     );
-    res.status(201).json(mapDepartureToFrontend(result.rows[0]));
+    const newId = result.rows[0].id;
+    const fullRes = await query(
+      `SELECT gd.*,
+              p.name AS package_name,
+              p.region AS package_region,
+              p.duration AS package_duration,
+              p.card_image AS package_card_image,
+              p.base_price AS package_base_price
+       FROM group_departures gd
+       LEFT JOIN packages p ON p.id = gd.package_id
+       WHERE gd.id = $1`,
+      [newId]
+    );
+    res.status(201).json(mapDepartureToFrontend(fullRes.rows[0]));
   } catch (error) {
     next(error);
   }
@@ -123,14 +136,13 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       ? (typeof itinerary === 'string' ? itinerary : JSON.stringify(itinerary || []))
       : current.rows[0].itinerary;
 
-    const result = await query(
+    await query(
       `UPDATE group_departures SET
         package_id = $1, title = $2, departure_date = $3, return_date = $4,
         slots_total = $5, slots_booked = $6, price_modifier = $7, cost_price = $8,
         cta_badge = $9, inclusions = $10, exclusions = $11, highlights = $12,
         itinerary = $13, status = $14, notes = $15, terms_and_conditions = $16
-       WHERE id = $17
-       RETURNING *`,
+       WHERE id = $17`,
       [
         packageId ?? current.rows[0].package_id,
         title ?? current.rows[0].title,
@@ -151,7 +163,19 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         id
       ]
     );
-    res.json(mapDepartureToFrontend(result.rows[0]));
+    const fullRes = await query(
+      `SELECT gd.*,
+              p.name AS package_name,
+              p.region AS package_region,
+              p.duration AS package_duration,
+              p.card_image AS package_card_image,
+              p.base_price AS package_base_price
+       FROM group_departures gd
+       LEFT JOIN packages p ON p.id = gd.package_id
+       WHERE gd.id = $1`,
+      [id]
+    );
+    res.json(mapDepartureToFrontend(fullRes.rows[0]));
   } catch (error) {
     next(error);
   }
