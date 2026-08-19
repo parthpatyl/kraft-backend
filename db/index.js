@@ -49,6 +49,24 @@ export const migrationsReady = (async () => {
   await migrate('packages: terms_and_conditions', () =>
     pool.query(`ALTER TABLE packages ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT`)
   );
+  await migrate('group_departures: cost_price', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS cost_price NUMERIC(10,2) DEFAULT 0`)
+  );
+  await migrate('group_departures: cta_badge', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS cta_badge VARCHAR(100)`)
+  );
+  await migrate('group_departures: inclusions', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS inclusions TEXT[] DEFAULT '{}'`)
+  );
+  await migrate('group_departures: exclusions', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS exclusions TEXT[] DEFAULT '{}'`)
+  );
+  await migrate('group_departures: highlights', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS highlights TEXT[] DEFAULT '{}'`)
+  );
+  await migrate('group_departures: itinerary', () =>
+    pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS itinerary JSONB DEFAULT '[]'::jsonb`)
+  );
   await migrate('group_departures: terms_and_conditions', () =>
     pool.query(`ALTER TABLE group_departures ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT`)
   );

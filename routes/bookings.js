@@ -23,6 +23,7 @@ export function mapBookingToFrontend(row, { inrToUsdRate = 0 } = {}) {
     client_id: row.client_id,
     package: row.package_name,
     package_id: row.package_id,
+    departureId: row.departure_id || null,
     amount,
     taxAmount,
     netAmount,
@@ -88,9 +89,12 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
     startDate,
     endDate,
     progress,
-    specialDirectives
+    specialDirectives,
+    departureId: inputDepartureId,
+    departure_id: inputDepartureIdSnake
   } = req.body;
 
+  const departureId = inputDepartureId || inputDepartureIdSnake || null;
   const id = req.body.id || `BK-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
   const guestCount = parseInt(guests) || 1;
 
@@ -139,11 +143,11 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
     }
 
     const insResult = await dbClient.query(`
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, special_directives)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, special_directives)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       RETURNING *
     `, [
-      id, client, clientId, packageName, packageId,
+      id, client, clientId, packageName, packageId, departureId,
       numericAmount, taxAmount, netAmount,
       date || null, status || 'Pending', agent || 'Unassigned',
       guestCount, JSON.stringify(members), notes || '',
@@ -200,7 +204,9 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     startDate,
     endDate,
     progress,
-    specialDirectives
+    specialDirectives,
+    departureId: inputDepartureId,
+    departure_id: inputDepartureIdSnake
   } = req.body;
 
   let current;
@@ -323,6 +329,53 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
       }
     }
 
+    // Handle departure slot deltas
+    const oldDepartureId = current.departure_id;
+    const newDepartureId = updatedDepartureId;
+    if (oldDepartureId || newDepartureId) {
+      if (oldDepartureId && newDepartureId && String(oldDepartureId) === String(newDepartureId)) {
+        // Same departure, guest count may have changed
+        const depDelta = newGuestCount - oldGuestCount;
+        if (depDelta !== 0) {
+          if (depDelta > 0) {
+            const depSlotRes = await dbClient.query(
+              'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+              [depDelta, oldDepartureId]
+            );
+            if (depSlotRes.rows.length === 0) {
+              await dbClient.query('ROLLBACK');
+              began = false;
+              return res.status(400).json({ error: `Not enough departure slots to add ${depDelta} more guests.` });
+            }
+          } else {
+            await dbClient.query(
+              'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+              [Math.abs(depDelta), oldDepartureId]
+            );
+          }
+        }
+      } else {
+        // Departure changed — release old, claim new
+        if (oldDepartureId) {
+          await dbClient.query(
+            'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+            [oldGuestCount, oldDepartureId]
+          );
+        }
+        if (newDepartureId) {
+          const depSlotRes = await dbClient.query(
+            'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+            [newGuestCount, newDepartureId]
+          );
+          if (depSlotRes.rows.length === 0) {
+            await dbClient.query('ROLLBACK');
+            began = false;
+            return res.status(400).json({ error: `Not enough departure slots for the selected departure. Requested ${newGuestCount}.` });
+          }
+        }
+      }
+    }
+
     const updatedClientName = client !== undefined ? client : current.client_name;
     let updatedClientId = current.client_id;
     if (client !== undefined && client !== current.client_name) {
@@ -340,6 +393,10 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     const resolvedGroupMembers = groupMembers !== undefined ? groupMembers : (current.group_members || []);
     const resolvedSpecialDirectives = specialDirectives !== undefined ? specialDirectives : (current.special_directives || []);
 
+    const updatedDepartureId = inputDepartureId !== undefined
+      ? inputDepartureId
+      : (inputDepartureIdSnake !== undefined ? inputDepartureIdSnake : current.departure_id);
+
     const updResult = await dbClient.query(`
       UPDATE bookings SET
         client_name = $1, client_id = $2,
@@ -349,8 +406,9 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
         departure_date = $10, status = $11,
         agent = $12, guests = $13, group_members = $14,
         notes = $15, start_date = $16, end_date = $17,
-        progress = $18, special_directives = $19
-      WHERE id = $20
+        progress = $18, special_directives = $19,
+        departure_id = $20
+      WHERE id = $21
       RETURNING *
     `, [
       updatedClientName, updatedClientId,
@@ -366,6 +424,7 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
       endDate !== undefined ? (endDate || null) : current.end_date,
       progress !== undefined ? JSON.stringify(progress) : (current.progress ? JSON.stringify(current.progress) : null),
       JSON.stringify(resolvedSpecialDirectives),
+      updatedDepartureId,
       id
     ]);
 
@@ -487,6 +546,13 @@ router.delete('/:id', requirePermission('write:bookings'), async (req, res, next
       );
     }
 
+    if (booking.departure_id) {
+      await dbClient.query(
+        'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+        [guestCount, booking.departure_id]
+      );
+    }
+
     await dbClient.query('DELETE FROM bookings WHERE id = $1', [id]);
 
     // Log deletion to client logs
@@ -575,8 +641,16 @@ router.post('/inquiry', async (req, res, next) => {
   let packageDuration = null;
   let packageIsBespoke = false;
   let packageTaxRate = null;
+  let departurePriceModifier = 0;
 
   try {
+    if (departureId) {
+      const depRes = await query('SELECT * FROM group_departures WHERE id = $1', [departureId]);
+      if (depRes.rows.length > 0) {
+        departurePriceModifier = Number(depRes.rows[0].price_modifier) || 0;
+      }
+    }
+
     const isCustom = packageId.startsWith('custom-');
     if (isCustom) {
       const destName = packageId.replace('custom-', '').replace(/-/g, ' ');
@@ -597,7 +671,8 @@ router.post('/inquiry', async (req, res, next) => {
       packageIsBespoke = packageItem.is_bespoke || false;
 
       const guestCount = parseInt(guests) || 1;
-      numericAmount = Number(packageItem.base_price) * guestCount;
+      const basePerGuest = (Number(packageItem.base_price) || 0) + departurePriceModifier;
+      numericAmount = basePerGuest * guestCount;
       packageTaxRate = packageItem.tax_rate !== null ? Number(packageItem.tax_rate) : null;
     }
   } catch (error) {

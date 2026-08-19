@@ -28,6 +28,7 @@
     "nodemailer": "^9.0.1",
     "pg": "^8.13.1",
     "pug": "^3.0.3",
+    "puppeteer": "^25.8.0",
     "winston": "^3.14.0"
   },
   "devDependencies": {

@@ -27,6 +27,7 @@ import enquiryRouter from './src/routes/enquiry.routes.js';
 import logger from './src/utils/logger.js';
 import { verifyConnection, createTransporter } from './src/services/emailService.js';
 import { getQueueStats } from './src/services/emailQueue.js';
+import withTimeout from './src/utils/withTimeout.js';
 
 import crypto from 'crypto';
 
@@ -118,22 +119,57 @@ app.get('/enquiries/:id', (req, res) => {
   res.redirect(`${adminUrl}/enquiries/${req.params.id}`);
 });
 
-// Health check with SMTP status
+// Health check with SMTP and Redis status
 app.get('/api/health', async (req, res) => {
-  let smtpConnected = false;
-  let queueStats = { completed: 0, failed: 0, pending: 0, active: 0 };
+  const start = Date.now();
+  const HEALTH_TIMEOUT_MS = parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS, 10) || 5000;
+  const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_HEALTH_CHECK_TIMEOUT_MS, 10) || 2500;
+
   try {
-    smtpConnected = await verifyConnection();
-    queueStats = await getQueueStats();
+    const [smtpOk, queueStats] = await Promise.all([
+      withTimeout(verifyConnection(), SMTP_TIMEOUT_MS, 'SMTP verification')
+        .then((ok) => ok)
+        .catch(() => false),
+      getQueueStats().catch((err) => ({
+        completed: 0,
+        failed: 0,
+        pending: 0,
+        active: 0,
+        redis: 'unavailable',
+        error: err.message,
+      })),
+    ]);
+
+    const duration = Date.now() - start;
+
+    if (duration > HEALTH_TIMEOUT_MS) {
+      return res.status(503).json({
+        status: 'degraded',
+        message: 'Health check exceeded timeout',
+        duration_ms: duration,
+        smtp: smtpOk ? 'connected' : 'not_configured',
+        emailQueue: queueStats,
+        timestamp: new Date(),
+      });
+    }
+
+    res.json({
+      status: 'OK',
+      duration_ms: duration,
+      smtpConnected: smtpOk,
+      smtp: smtpOk ? 'connected' : 'not_configured',
+      emailQueue: queueStats,
+      timestamp: new Date(),
+    });
   } catch (e) {
-    logger.warn('Health check SMTP error', { error: e.message });
+    logger.warn('Health check error', { error: e.message });
+    res.status(500).json({
+      status: 'error',
+      error: e.message,
+      duration_ms: Date.now() - start,
+      timestamp: new Date(),
+    });
   }
-  res.json({
-    status: 'OK',
-    smtpConnected,
-    emailQueue: queueStats,
-    timestamp: new Date(),
-  });
 });
 
 // Error handling middleware
@@ -152,18 +188,19 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info(`Server started on port ${PORT}`);
     console.log(`Server is running on port ${PORT}`);
 
-    // Initialize SMTP transporter on startup
-    createTransporter().then(() => {
-      verifyConnection().then((ok) => {
+    // Initialize SMTP transporter on startup (non-blocking, with timeout)
+    createTransporter()
+      .then(() => withTimeout(verifyConnection(), 2500, 'SMTP startup check'))
+      .then((ok) => {
         if (ok) {
           logger.info('SMTP ready on startup');
         } else {
           logger.warn('SMTP not available on startup - emails will retry via queue');
         }
+      })
+      .catch((err) => {
+        logger.warn('SMTP init skipped on startup', { error: err.message });
       });
-    }).catch((err) => {
-      logger.error('SMTP init failed on startup', { error: err.message });
-    });
   });
 }
 
