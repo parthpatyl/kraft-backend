@@ -7,6 +7,7 @@ import { roleHas } from '../middleware/permissions.js';
 import { notifyAll } from '../middleware/notify.js';
 import { processEnquiryEmails } from '../src/services/emailQueue.js';
 import logger from '../src/utils/logger.js';
+import { publicFormLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -586,7 +587,7 @@ router.delete('/:id', requirePermission('write:bookings'), async (req, res, next
 });
 
 // PUBLIC POST booking/inquiry (from Customer Site)
-router.post('/inquiry', async (req, res, next) => {
+router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
   let { name, email, phone, packageId, startDate, endDate, guests, groupMembers, notes, departureId } = req.body;
 
   // Input validation

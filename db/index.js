@@ -21,7 +21,9 @@ export const query = (text, params) => pool.query(text, params);
 export const getClient = () => pool.connect();
 export default pool;
 
-// Auto-migrations: run on startup to add columns that may not exist in legacy DBs
+import { initialPackages, initialGroupDepartures, initialTestimonials, initialCorporatePackages } from './seedData.js';
+
+// Auto-migrations: run on startup to add tables and columns that may not exist in legacy DBs
 export const migrationsReady = (async () => {
   let ok = true;
   const migrate = async (label, fn) => {
@@ -33,6 +35,117 @@ export const migrationsReady = (async () => {
       ok = false;
     }
   };
+
+  // 1. Ensure core tables exist first
+  await migrate('create tables: packages, testimonials, group_departures, corporate', async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS packages (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        duration VARCHAR(50) NOT NULL,
+        base_price NUMERIC(12,2) NOT NULL,
+        cost_price NUMERIC(12,2),
+        tax_rate NUMERIC(4,1) DEFAULT 5,
+        tax_inclusive BOOLEAN DEFAULT TRUE,
+        region VARCHAR(100) NOT NULL,
+        category VARCHAR(50) DEFAULT 'standard',
+        slots_booked INTEGER DEFAULT 0,
+        slots_total INTEGER NOT NULL,
+        trend VARCHAR(50),
+        inclusions_selection JSONB,
+        hero_image TEXT,
+        card_image TEXT,
+        description TEXT,
+        highlights TEXT[],
+        inclusions TEXT[],
+        exclusions TEXT[],
+        itinerary JSONB,
+        best_month VARCHAR(50),
+        cta_badge VARCHAR(100),
+        is_bespoke BOOLEAN DEFAULT FALSE,
+        terms_and_conditions TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS testimonials (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        location VARCHAR(255),
+        avatar TEXT,
+        rating INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        package VARCHAR(255),
+        images JSONB DEFAULT '[]'::jsonb,
+        type VARCHAR(20) DEFAULT 'consumer',
+        company VARCHAR(255),
+        role VARCHAR(100) DEFAULT 'Customer',
+        status VARCHAR(50) DEFAULT 'approved',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS group_departures (
+        id SERIAL PRIMARY KEY,
+        package_id VARCHAR(50) REFERENCES packages(id) ON DELETE CASCADE,
+        title VARCHAR(255),
+        departure_date DATE NOT NULL,
+        return_date DATE,
+        slots_total INTEGER NOT NULL DEFAULT 20,
+        slots_booked INTEGER DEFAULT 0,
+        price_modifier NUMERIC(12,2) DEFAULT 0,
+        cost_price NUMERIC(12,2) DEFAULT 0,
+        cta_badge VARCHAR(100),
+        inclusions TEXT[],
+        exclusions TEXT[],
+        highlights TEXT[],
+        itinerary JSONB DEFAULT '[]'::jsonb,
+        status VARCHAR(50) DEFAULT 'scheduled',
+        notes TEXT,
+        terms_and_conditions TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS corporate_packages (
+        id SERIAL PRIMARY KEY,
+        destination VARCHAR(255) NOT NULL,
+        nights VARCHAR(50),
+        starting_price NUMERIC(10,2),
+        category VARCHAR(50) NOT NULL,
+        image_url TEXT,
+        description TEXT,
+        highlights TEXT[],
+        is_active BOOLEAN DEFAULT true,
+        display_order INTEGER DEFAULT 0,
+        terms_and_conditions TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS corporate_leads (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        mobile VARCHAR(20) NOT NULL,
+        work_email VARCHAR(255) NOT NULL,
+        company_name VARCHAR(255) NOT NULL,
+        message TEXT,
+        status VARCHAR(50) DEFAULT 'new',
+        per_person_rate NUMERIC(12,2),
+        group_size INTEGER,
+        discount_type VARCHAR(10),
+        discount_value NUMERIC(10,2),
+        tax_rate NUMERIC(4,1) DEFAULT 5,
+        tax_inclusive BOOLEAN DEFAULT TRUE,
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS corporate_clients (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        logo_url TEXT,
+        industry VARCHAR(255),
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true
+      );
+    `);
+  });
 
   await migrate('packages: is_bespoke', () =>
     pool.query(`ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_bespoke BOOLEAN DEFAULT FALSE`)
@@ -72,6 +185,9 @@ export const migrationsReady = (async () => {
   );
   await migrate('corporate_packages: terms_and_conditions', () =>
     pool.query(`ALTER TABLE corporate_packages ADD COLUMN IF NOT EXISTS terms_and_conditions TEXT`)
+  );
+  await migrate('corporate_packages: itinerary', () =>
+    pool.query(`ALTER TABLE corporate_packages ADD COLUMN IF NOT EXISTS itinerary JSONB DEFAULT '[]'::jsonb`)
   );
 
   await migrate('clients: wallet_balance type', async () => {
@@ -327,8 +443,122 @@ export const migrationsReady = (async () => {
     await pool.query(`ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'approved'`);
   });
 
+  await migrate('non-destructive baseline seed: packages, group_departures, corporate, testimonials', async () => {
+    // 1. Seed packages if fewer than 4 packages exist
+    const pkgCountRes = await pool.query(`SELECT COUNT(*)::int FROM packages`);
+    if (pkgCountRes.rows[0].count < 4) {
+      for (const pkg of initialPackages) {
+        await pool.query(
+          `INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, category, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, cta_badge, is_bespoke)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            pkg.id,
+            pkg.name,
+            pkg.duration,
+            pkg.basePrice,
+            pkg.costPrice ?? null,
+            pkg.taxRate ?? 5,
+            pkg.taxInclusive ?? true,
+            pkg.region,
+            pkg.category ?? 'standard',
+            pkg.slots?.booked ?? 0,
+            pkg.slots?.total ?? 20,
+            pkg.trend,
+            JSON.stringify(pkg.inclusionsSelection),
+            pkg.heroImage,
+            pkg.cardImage,
+            pkg.description,
+            pkg.highlights,
+            pkg.inclusions,
+            pkg.exclusions,
+            JSON.stringify(pkg.itinerary),
+            pkg.ctaBadge || null,
+            pkg.isBespoke || false
+          ]
+        );
+      }
+    }
+
+    // 2. Seed group departures if empty
+    const depCountRes = await pool.query(`SELECT COUNT(*)::int FROM group_departures`);
+    if (depCountRes.rows[0].count === 0) {
+      for (const dep of initialGroupDepartures) {
+        await pool.query(
+          `INSERT INTO group_departures (package_id, title, departure_date, return_date, slots_total, slots_booked, price_modifier, cost_price, cta_badge, inclusions, exclusions, highlights, itinerary, status, notes, terms_and_conditions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+           ON CONFLICT DO NOTHING`,
+          [
+            dep.packageId,
+            dep.title,
+            dep.departureDate,
+            dep.returnDate,
+            dep.slotsTotal,
+            dep.slotsBooked,
+            dep.priceModifier,
+            dep.costPrice,
+            dep.ctaBadge,
+            dep.inclusions,
+            dep.exclusions,
+            dep.highlights,
+            JSON.stringify(dep.itinerary || []),
+            dep.status,
+            dep.notes,
+            dep.termsAndConditions
+          ]
+        );
+      }
+    }
+
+    // 3. Seed testimonials if fewer than 5 exist
+    const testCountRes = await pool.query(`SELECT COUNT(*)::int FROM testimonials`);
+    if (testCountRes.rows[0].count < 5) {
+      for (const t of initialTestimonials) {
+        const check = await pool.query(`SELECT id FROM testimonials WHERE name = $1 LIMIT 1`, [t.name]);
+        if (check.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO testimonials (name, location, avatar, rating, text, package, type, role, company, images, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'approved')`,
+            [
+              t.name,
+              t.location,
+              t.avatar,
+              t.rating,
+              t.text,
+              t.package,
+              t.type || 'consumer',
+              t.role || 'Customer',
+              t.company || '',
+              JSON.stringify(t.images || [])
+            ]
+          );
+        }
+      }
+    }
+
+    // 4. Seed corporate packages if empty
+    const corpCountRes = await pool.query(`SELECT COUNT(*)::int FROM corporate_packages`);
+    if (corpCountRes.rows[0].count === 0) {
+      for (const c of initialCorporatePackages) {
+        await pool.query(
+          `INSERT INTO corporate_packages (destination, nights, starting_price, category, image_url, description, highlights)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            c.destination,
+            c.nights,
+            c.startingPrice,
+            c.category,
+            c.imageUrl,
+            c.description,
+            c.highlights
+          ]
+        );
+      }
+    }
+  });
+
   if (ok) {
-    console.log('[DB] Pricing migrations complete');
+    console.log('[DB] Pricing migrations and baseline seeds complete');
   } else {
     console.warn('[DB] Some migrations failed — app may behave unexpectedly');
   }

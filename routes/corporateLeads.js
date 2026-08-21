@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
+import { publicFormLimiter } from '../middleware/rateLimiter.js';
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get('/', requirePermission('read:bookings'), async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', publicFormLimiter, async (req, res, next) => {
   try {
     const { name, mobile, workEmail, companyName, message } = req.body;
 

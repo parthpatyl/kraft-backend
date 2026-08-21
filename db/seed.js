@@ -1,7 +1,11 @@
 import pool, { query, migrationsReady } from './index.js';
 import bcrypt from 'bcryptjs';
-
-const initialPackages = [];
+import {
+  initialPackages,
+  initialGroupDepartures as departureData,
+  initialTestimonials,
+  initialCorporatePackages as corporatePackages
+} from './seedData.js';
 
 const initialClients = [];
 
@@ -28,8 +32,6 @@ const initialSettings = {
   apis: null,
   inrToUsdRate: 0
 };
-
-const initialTestimonials = [];
 
 async function seed() {
   try {

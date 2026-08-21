@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -21,8 +22,10 @@ const storage = multer.diskStorage({
     cb(null, assetsDir);
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    const cleanBase = path.basename(file.originalname);
+    const ext = path.extname(cleanBase).toLowerCase();
+    const safeRandom = crypto.randomBytes(16).toString('hex');
+    cb(null, `${Date.now()}-${safeRandom}${ext}`);
   }
 });
 

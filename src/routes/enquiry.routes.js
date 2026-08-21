@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import validateEnquiry from '../middlewares/enquiryValidation.js';
 import requireAuth from '../../middleware/requireAuth.js';
+import { publicFormLimiter } from '../../middleware/rateLimiter.js';
 import {
   submitEnquiry,
   getEnquiryStatus,
@@ -12,7 +13,7 @@ import {
 const router = Router();
 
 router.get('/status', getEnquiryStatus);
-router.post('/submit', validateEnquiry, submitEnquiry);
+router.post('/submit', publicFormLimiter, validateEnquiry, submitEnquiry);
 router.get('/', requireAuth, listEnquiries);
 router.put('/:id/status', requireAuth, updateEnquiryStatus);
 router.get('/:id', getEnquiryById);

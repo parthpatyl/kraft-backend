@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import requireAuth from './middleware/requireAuth.js';
+import { apiLimiter } from './middleware/rateLimiter.js';
 import packagesRouter from './routes/packages.js';
 import clientsRouter from './routes/clients.js';
 import bookingsRouter from './routes/bookings.js';
@@ -59,9 +60,36 @@ if (isSecretWeak) {
 }
 
 const app = express();
-// CORS — robust cross-origin support for both customer site and admin dashboard
+
+// HTTP Security Headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Explicit CORS Whitelist configuration
+const allowedOrigins = [
+  process.env.APP_URL || 'http://localhost:5173',
+  process.env.ADMIN_URL || 'http://localhost:5174',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : [])
+];
+
 const corsOptions = {
-  origin: true, // Dynamically allow request origin
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. mobile apps, curl, server-to-server, tests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || (!isProd && /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin))) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Range'],
@@ -71,6 +99,9 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// General API rate limiter
+app.use('/api', apiLimiter);
 
 app.use(express.json());
 
@@ -102,21 +133,30 @@ app.use('/api/speciality-categories', specialityCategoriesRouter);
 // Enquiry routes (SMTP-powered)
 app.use('/api/enquiries', enquiryRouter);
 
+function sanitizeRedirectId(rawId) {
+  if (!rawId || typeof rawId !== 'string') return '';
+  const cleaned = rawId.replace(/[^a-zA-Z0-9_-]/g, '');
+  return encodeURIComponent(cleaned);
+}
+
 // Redirect backend enquiry links to customer site
 app.get('/enquiry/:id', (req, res) => {
+  const safeId = sanitizeRedirectId(req.params.id);
   const frontendUrl = process.env.APP_URL || 'http://localhost:5173';
-  res.redirect(`${frontendUrl}/enquiry/${req.params.id}`);
+  res.redirect(`${frontendUrl}/enquiry/${safeId}`);
 });
 
 // Redirect backend admin enquiry links to admin site
 app.get('/admin/enquiries/:id', (req, res) => {
+  const safeId = sanitizeRedirectId(req.params.id);
   const adminUrl = process.env.ADMIN_URL || 'http://localhost:5174';
-  res.redirect(`${adminUrl}/enquiries/${req.params.id}`);
+  res.redirect(`${adminUrl}/enquiries/${safeId}`);
 });
 
 app.get('/enquiries/:id', (req, res) => {
+  const safeId = sanitizeRedirectId(req.params.id);
   const adminUrl = process.env.ADMIN_URL || 'http://localhost:5174';
-  res.redirect(`${adminUrl}/enquiries/${req.params.id}`);
+  res.redirect(`${adminUrl}/enquiries/${safeId}`);
 });
 
 // Health check with SMTP and Redis status
@@ -178,8 +218,14 @@ app.use((err, req, res, next) => {
     return next(err);
   }
   logger.error('API Error', { error: err.message, stack: err.stack, method: req.method, url: req.url });
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error'
+  const status = err.status || (err.message === 'Not allowed by CORS' ? 403 : 500);
+  const isProduction = process.env.NODE_ENV === 'production';
+  const message = (isProduction && status === 500)
+    ? 'Internal Server Error'
+    : (err.message || 'Internal Server Error');
+
+  res.status(status).json({
+    error: message
   });
 });
 
