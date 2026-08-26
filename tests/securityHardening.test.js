@@ -38,6 +38,18 @@ describe('Security Hardening Test Suite', () => {
       expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5174');
     });
 
+    it('allows production Vercel admin dashboard and previews', async () => {
+      const res1 = await request(app)
+        .get('/api/health')
+        .set('Origin', 'https://travel-agency-dash.vercel.app');
+      expect(res1.headers['access-control-allow-origin']).toBe('https://travel-agency-dash.vercel.app');
+
+      const res2 = await request(app)
+        .get('/api/health')
+        .set('Origin', 'https://travel-customer-panel.vercel.app');
+      expect(res2.headers['access-control-allow-origin']).toBe('https://travel-customer-panel.vercel.app');
+    }, 15000);
+
     it('blocks untrusted third-party origins', async () => {
       const res = await request(app)
         .get('/api/health')

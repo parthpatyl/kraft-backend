@@ -5,7 +5,7 @@ const isTest = process.env.NODE_ENV === 'test';
 // 1. Auth Rate Limiter — Brute force protection for login
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Max 10 login attempts per window per IP
+  max: 30, // Max 30 login attempts per window per IP
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Please try again after 15 minutes.' },

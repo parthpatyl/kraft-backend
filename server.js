@@ -61,6 +61,9 @@ if (isSecretWeak) {
 
 const app = express();
 
+// Trust reverse proxies (Render, Cloudflare, Vercel) for accurate client IP identification
+app.set('trust proxy', 1);
+
 // HTTP Security Headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -70,22 +73,38 @@ app.use((req, res, next) => {
   next();
 });
 
-// Explicit CORS Whitelist configuration
-const allowedOrigins = [
-  process.env.APP_URL || 'http://localhost:5173',
-  process.env.ADMIN_URL || 'http://localhost:5174',
+// Explicit CORS Whitelist configuration including production Vercel & Render origins
+const staticAllowedOrigins = [
+  'https://travel-agency-dash.vercel.app',
+  'https://travel-customer-panel.vercel.app',
+  'https://kraft-backend-ndss.onrender.com',
   'http://localhost:5173',
   'http://localhost:5174',
+  'http://localhost:3000',
+  'http://localhost:5000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5000',
+  ...(process.env.APP_URL ? [process.env.APP_URL.trim()] : []),
+  ...(process.env.ADMIN_URL ? [process.env.ADMIN_URL.trim()] : []),
   ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : [])
 ];
 
+const isOriginAllowed = (origin) => {
+  // Allow non-browser requests (e.g. mobile apps, curl, server-to-server, tests)
+  if (!origin) return true;
+  if (staticAllowedOrigins.includes(origin)) return true;
+  // Allow all Vercel deployment and preview subdomains (e.g. travel-agency-dash-*.vercel.app)
+  if (/^https:\/\/[a-z0-9-]+(\.vercel\.app)$/i.test(origin)) return true;
+  // Allow localhost / 127.0.0.1 on any port in development
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin)) return true;
+  return false;
+};
+
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow non-browser requests (e.g. mobile apps, curl, server-to-server, tests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || (!isProd && /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin))) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
