@@ -83,8 +83,8 @@ describe('Empirical Adversarial Stress Test Suite — Milestone 1', () => {
           phone: '+919876543210',
           packageId: 'pkg-ladakh',
           departureId: 42,
-          startDate: '2026-09-20',
-          endDate: '2026-09-25',
+          startDate: '2026-11-20',
+          endDate: '2026-11-25',
           guests: 2
         });
 
@@ -146,8 +146,8 @@ describe('Empirical Adversarial Stress Test Suite — Milestone 1', () => {
           phone: '+919876543210',
           packageId: 'pkg-ladakh',
           departureId: 99999,
-          startDate: '2026-09-20',
-          endDate: '2026-09-25',
+          startDate: '2026-11-20',
+          endDate: '2026-11-25',
           guests: 1
         });
 
@@ -182,8 +182,8 @@ describe('Empirical Adversarial Stress Test Suite — Milestone 1', () => {
           email: 'alice@example.com',
           phone: '+919876543210',
           packageId: 'pkg-ladakh',
-          startDate: '2026-10-10',
-          endDate: '2026-10-05'
+          startDate: '2026-11-10',
+          endDate: '2026-11-05'
         });
 
       expect(res.status).toBe(400);
@@ -198,8 +198,8 @@ describe('Empirical Adversarial Stress Test Suite — Milestone 1', () => {
           email: 'alice@example.com',
           phone: '+919876543210',
           packageId: 'pkg-ladakh',
-          startDate: '2026-10-10',
-          endDate: '2026-10-15'
+          startDate: '2026-11-10',
+          endDate: '2026-11-15'
         });
 
       expect(res.status).toBe(400);
@@ -291,8 +291,8 @@ describe('Empirical Adversarial Stress Test Suite — Milestone 1', () => {
           phone: '+919876543210',
           packageId: 'pkg-kashmir',
           departureId: 5,
-          startDate: '2026-10-01',
-          endDate: '2026-10-05',
+          startDate: '2026-11-01',
+          endDate: '2026-11-05',
           guests: 10
         });
 

@@ -61,4 +61,40 @@ describe('Auth API Routes', () => {
       expect(res.body.user).toHaveProperty('name', 'Admin');
     });
   });
+
+  describe('POST /api/auth/change-password', () => {
+    it('returns 401 when no token is provided', async () => {
+      const res = await request(app)
+        .post('/api/auth/change-password')
+        .send({ currentPassword: 'OldPassword1', newPassword: 'NewPassword2' });
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects short or non-alphanumeric passwords', async () => {
+      const token = jwt.sign({ id: 1, name: 'Admin', role: 'admin' }, process.env.JWT_SECRET);
+      const res = await request(app)
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ currentPassword: 'OldPassword1', newPassword: 'short' });
+      expect(res.status).toBe(400);
+      expect(res.body).toHaveProperty('error');
+    });
+
+    it('successfully changes password when current password matches', async () => {
+      const oldHash = await bcrypt.hash('OldPassword1', 10);
+      query.mockResolvedValueOnce({
+        rows: [{ id: 1, name: 'Admin', email: 'admin@kraft.com', password_hash: oldHash, role: 'admin' }]
+      });
+      query.mockResolvedValueOnce({ rows: [] }); // UPDATE
+
+      const token = jwt.sign({ id: 1, name: 'Admin', role: 'admin' }, process.env.JWT_SECRET);
+      const res = await request(app)
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ currentPassword: 'OldPassword1', newPassword: 'NewPassword2' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('message', 'Password changed successfully');
+    });
+  });
 });

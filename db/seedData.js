@@ -434,18 +434,6 @@ export const initialTestimonials = [
     role: 'Adventure Enthusiast',
     company: '',
     images: ['/assets/unsplash-bali.jpg', '/assets/unsplash-maldives.jpg']
-  },
-  {
-    name: 'Rajesh Varma (VP HR, TechCorp)',
-    location: 'Hyderabad, India',
-    avatar: '/assets/default-avatar.png',
-    rating: 5,
-    text: 'Kraft Your Trip managed our 120-person annual corporate offsite in Goa. Conference setups, beach gala dinners, and team activities were executed with military precision.',
-    package: 'Goa Beachfront Leadership Offsite',
-    type: 'corporate',
-    role: 'Corporate Lead',
-    company: 'TechCorp Solutions',
-    images: ['/assets/corporate-hero.jpg', '/assets/unsplash-goa.jpg']
   }
 ];
 

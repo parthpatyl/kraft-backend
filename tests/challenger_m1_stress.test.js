@@ -56,8 +56,8 @@ describe('Milestone 1 Challenger Stress Suite', () => {
           phone: '+15550192831',
           packageId: 'pkg-1',
           departureId: 1,
-          startDate: '2026-10-01',
-          endDate: '2026-10-05',
+          startDate: '2026-11-01',
+          endDate: '2026-11-05',
           guests: 2
         });
 
@@ -100,8 +100,8 @@ describe('Milestone 1 Challenger Stress Suite', () => {
           email: 'alice@example.com',
           phone: '+15550192831',
           packageId: 'pkg-1',
-          startDate: '2026-10-01',
-          endDate: '2026-10-05',
+          startDate: '2026-11-01',
+          endDate: '2026-11-05',
           guests: 5
         });
 
@@ -167,8 +167,8 @@ describe('Milestone 1 Challenger Stress Suite', () => {
           phone: '+15550192831',
           packageId: 'pkg-1',
           departureId: 5,
-          startDate: '2026-10-01',
-          endDate: '2026-10-04',
+          startDate: '2026-11-01',
+          endDate: '2026-11-04',
           guests: 2
         });
 
@@ -349,8 +349,8 @@ describe('Milestone 1 Challenger Stress Suite', () => {
           email: 'reverse@example.com',
           phone: '+15550192831',
           packageId: 'pkg-1',
-          startDate: '2026-10-10',
-          endDate: '2026-10-05',
+          startDate: '2026-11-10',
+          endDate: '2026-11-05',
           guests: 1
         });
 
@@ -367,7 +367,7 @@ describe('Milestone 1 Challenger Stress Suite', () => {
           phone: '+15550192831',
           packageId: 'pkg-1',
           startDate: 'not-a-date',
-          endDate: '2026-10-05',
+          endDate: '2026-11-05',
           guests: 1
         });
 

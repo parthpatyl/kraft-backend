@@ -7,19 +7,24 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+function cleanEnvStr(val, fallback = '') {
+  if (!val) return fallback;
+  return val.trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
+
 const emailConfig = {
-  host: process.env.GOOGLE_SMTP_HOST || 'smtp.gmail.com',
+  host: cleanEnvStr(process.env.GOOGLE_SMTP_HOST, 'smtp.gmail.com'),
   port: parseInt(process.env.GOOGLE_SMTP_PORT, 10) || 587,
   secure: parseInt(process.env.GOOGLE_SMTP_PORT, 10) === 465,
   auth: {
-    user: process.env.GOOGLE_SMTP_USER || '',
-    pass: process.env.GOOGLE_SMTP_PASSWORD || '',
+    user: cleanEnvStr(process.env.GOOGLE_SMTP_USER, ''),
+    pass: cleanEnvStr(process.env.GOOGLE_SMTP_PASSWORD, ''),
   },
-  fromName: process.env.SMTP_FROM_NAME || 'Kraft Your Trip',
-  fromEmail: process.env.SMTP_FROM_EMAIL || process.env.GOOGLE_SMTP_USER || '',
-  adminEmail: process.env.ADMIN_EMAIL || '',
-  appUrl: process.env.APP_URL || 'http://localhost:5000',
-  adminUrl: process.env.ADMIN_URL || process.env.APP_URL || 'http://localhost:5000',
+  fromName: cleanEnvStr(process.env.SMTP_FROM_NAME, 'Kraft Your Trip'),
+  fromEmail: cleanEnvStr(process.env.SMTP_FROM_EMAIL) || cleanEnvStr(process.env.GOOGLE_SMTP_USER, ''),
+  adminEmail: cleanEnvStr(process.env.ADMIN_EMAIL, ''),
+  appUrl: cleanEnvStr(process.env.APP_URL, 'http://localhost:5000'),
+  adminUrl: cleanEnvStr(process.env.ADMIN_URL) || cleanEnvStr(process.env.APP_URL, 'http://localhost:5000'),
   pool: true,
   maxConnections: 5,
   maxMessages: 100,

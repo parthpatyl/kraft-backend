@@ -38,7 +38,7 @@ router.get('/', async (req, res, next) => {
       inrToUsdRate: 0,
       agencyName: 'KRAFT YOUR TRIP',
       agencyAddress: '456 Sandstone Ave, Suite 100, San Francisco, CA',
-      agencyPhone: '+1 (555) 019-2831',
+      agencyPhone: '+91 7046704693',
       agencyEmail: 'concierge@kraftyourtrip.com',
       permissions: {
         admin: { viewFinancials: true, editPricing: true, supplierCreds: true, clientScans: true },
@@ -87,6 +87,27 @@ router.get('/', async (req, res, next) => {
         heading: 'Ready to start planning your escape?',
         description: 'Get in touch with our expert luxury travel specialists. We will customize every detail of your itinerary to build your perfect journey.',
         buttonText: 'Request custom quote'
+      },
+      aboutSection: {
+        banner: {
+          badge: 'Our Story',
+          title: 'Curating bespoke travel',
+          description: 'Founded on the belief that travel should be art, KRAFT YOUR TRIP transforms ordinary vacations into masterfully tailored luxury itineraries.',
+          bgImage: '/assets/unsplash-about-hero.jpg'
+        },
+        philosophy: {
+          badge: 'Our Philosophy',
+          heading: 'Bespoke travel, curated down to the finest detail.',
+          p1: 'We understand that the true luxury of travel isn\'t just the 5-star accommodations or private transport — it\'s the luxury of peace of mind, of deep local experiences, and of memories created without friction.',
+          p2: 'Whether it is exploring Kyoto\'s historic shrines in traditional dress, trekking the alpine trails facing the Matterhorn, or floating in a private overwater bungalow in the Maldives, our specialists spend months designing, testing, and perfecting each detail to guarantee a perfect trip.',
+          image: '/assets/unsplash-about-section.jpg'
+        },
+        values: [
+          { title: 'Bespoke Curation', desc: 'No two journeys are the same. Our luxury travel designers create custom-tailored itineraries to meet your exact desires.', icon: 'Sparkles' },
+          { title: 'Expert Local Guides', desc: 'Gain exclusive access and deep cultural connection through our network of elite professional guides and historians.', icon: 'Compass' },
+          { title: 'Seamless Coordination', desc: 'From VIP fast-track airport customs to private jet and helicopter charters, we coordinate every detail flawlessly.', icon: 'Sliders' },
+          { title: '24/7 Concierge Support', desc: 'Travel with absolute confidence. Our operations team and local field agents are on call around the clock to support you.', icon: 'PhoneCall' }
+        ]
       }
     };
 
@@ -108,6 +129,16 @@ router.get('/', async (req, res, next) => {
       merged.ctaSection = defaultSettings.ctaSection;
     } else {
       merged.ctaSection = { ...defaultSettings.ctaSection, ...merged.ctaSection };
+    }
+
+    if (!merged.aboutSection) {
+      merged.aboutSection = defaultSettings.aboutSection;
+    } else {
+      merged.aboutSection = {
+        banner: { ...defaultSettings.aboutSection.banner, ...(merged.aboutSection.banner || {}) },
+        philosophy: { ...defaultSettings.aboutSection.philosophy, ...(merged.aboutSection.philosophy || {}) },
+        values: merged.aboutSection.values || defaultSettings.aboutSection.values
+      };
     }
 
     if (weatherRes.rows.length > 0) {

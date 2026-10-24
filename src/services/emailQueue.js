@@ -6,25 +6,66 @@ import { sendEmail, renderTemplate } from './emailService.js';
 
 const REDIS_TIMEOUT_MS = parseInt(process.env.REDIS_HEALTH_CHECK_TIMEOUT_MS, 10) || 2000;
 
-const emailQueue = new Bull('kraft-email-queue', {
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT, 10) || 6379,
-    connectTimeout: 5000,
-    retryStrategy(times) {
-      return Math.min(times * 50, 2000);
+function parseRedisConfig() {
+  const rawUrl = process.env.REDIS_URL;
+  if (rawUrl) {
+    let cleaned = rawUrl.trim().replace(/^['"]+|['"]+$/g, '').trim();
+    if (cleaned.startsWith('REDIS_URL=')) {
+      cleaned = cleaned.replace(/^REDIS_URL=/, '').trim().replace(/^['"]+|['"]+$/g, '').trim();
+    }
+    const isTls = cleaned.startsWith('rediss://');
+    return {
+      url: cleaned,
+      opts: {
+        redis: {
+          connectTimeout: 5000,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+          retryStrategy(times) {
+            return Math.min(times * 50, 2000);
+          },
+          ...(isTls ? { tls: { rejectUnauthorized: false } } : {}),
+        },
+      },
+    };
+  }
+
+  return {
+    url: null,
+    opts: {
+      redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+        connectTimeout: 5000,
+        retryStrategy(times) {
+          return Math.min(times * 50, 2000);
+        },
+      },
     },
+  };
+}
+
+const { url: redisUrl, opts: redisQueueOpts } = parseRedisConfig();
+
+const defaultJobOptions = {
+  attempts: parseInt(process.env.MAX_RETRIES, 10) || 3,
+  backoff: {
+    type: 'exponential',
+    delay: parseInt(process.env.RETRY_DELAY_MS, 10) || 5000,
   },
-  defaultJobOptions: {
-    attempts: parseInt(process.env.MAX_RETRIES, 10) || 3,
-    backoff: {
-      type: 'exponential',
-      delay: parseInt(process.env.RETRY_DELAY_MS, 10) || 5000,
-    },
-    removeOnComplete: 100,
-    removeOnFail: 50,
-  },
-});
+  removeOnComplete: 100,
+  removeOnFail: 50,
+};
+
+const emailQueue = redisUrl
+  ? new Bull('kraft-email-queue', redisUrl, {
+      ...redisQueueOpts,
+      defaultJobOptions,
+    })
+  : new Bull('kraft-email-queue', {
+      ...redisQueueOpts,
+      defaultJobOptions,
+    });
 
 emailQueue.on('completed', (job) => {
   logger.info('Email Job Completed', {

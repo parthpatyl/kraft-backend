@@ -349,8 +349,8 @@ describe('Group Departures API Routes', () => {
           phone: '+15550192831',
           packageId: 'pkg-kashmir',
           departureId: 1,
-          startDate: '2026-09-15',
-          endDate: '2026-09-21',
+          startDate: '2026-11-15',
+          endDate: '2026-11-21',
           guests: '2'
         });
 

@@ -73,8 +73,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Explicit CORS Whitelist configuration including production Vercel & Render origins
+// Helper to normalize origins (strips trailing slashes, surrounding quotes, and whitespace)
+const normalizeOrigin = (val) => {
+  if (!val || typeof val !== 'string') return '';
+  return val.trim().replace(/^['"]+|['"]+$/g, '').replace(/\/+$/, '');
+};
+
+// Explicit CORS Whitelist configuration including production Vercel, custom domains & Render origins
 const staticAllowedOrigins = [
+  'https://agency.kraftyourtrip.com',
+  'https://www.kraftyourtrip.com',
+  'https://kraftyourtrip.com',
   'https://travel-agency-dash.vercel.app',
   'https://travel-customer-panel.vercel.app',
   'https://kraft-backend-ndss.onrender.com',
@@ -86,19 +95,22 @@ const staticAllowedOrigins = [
   'http://127.0.0.1:5174',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5000',
-  ...(process.env.APP_URL ? [process.env.APP_URL.trim()] : []),
-  ...(process.env.ADMIN_URL ? [process.env.ADMIN_URL.trim()] : []),
-  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : [])
-];
+  ...(process.env.APP_URL ? [normalizeOrigin(process.env.APP_URL)] : []),
+  ...(process.env.ADMIN_URL ? [normalizeOrigin(process.env.ADMIN_URL)] : []),
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => normalizeOrigin(s)) : [])
+].filter(Boolean);
 
 const isOriginAllowed = (origin) => {
   // Allow non-browser requests (e.g. mobile apps, curl, server-to-server, tests)
   if (!origin) return true;
-  if (staticAllowedOrigins.includes(origin)) return true;
+  const cleanOrigin = normalizeOrigin(origin);
+  if (staticAllowedOrigins.includes(cleanOrigin)) return true;
+  // Allow all kraftyourtrip.com subdomains and root domain (HTTP or HTTPS)
+  if (/^https?:\/\/(?:[a-z0-9-]+\.)*kraftyourtrip\.com$/i.test(cleanOrigin)) return true;
   // Allow all Vercel deployment and preview subdomains (e.g. travel-agency-dash-*.vercel.app)
-  if (/^https:\/\/[a-z0-9-]+(\.vercel\.app)$/i.test(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+(\.vercel\.app)$/i.test(cleanOrigin)) return true;
   // Allow localhost / 127.0.0.1 on any port in development
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(origin)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/.test(cleanOrigin)) return true;
   return false;
 };
 

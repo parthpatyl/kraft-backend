@@ -23,6 +23,13 @@ router.get('/', async (req, res, next) => {
     if (status) {
       params.push(status);
       sql += ` AND status = $${params.length}`;
+    } else {
+      const authHeader = req.headers.authorization;
+      const hasAuth = authHeader && authHeader.startsWith('Bearer ');
+      if (!hasAuth) {
+        // Unauthenticated public calls only see approved testimonials
+        sql += ` AND (status = 'approved' OR status IS NULL)`;
+      }
     }
 
     sql += ' ORDER BY id DESC';
