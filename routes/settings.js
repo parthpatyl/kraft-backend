@@ -167,7 +167,25 @@ router.get('/', async (req, res, next) => {
 // PUT update settings
 router.put('/', requirePermission('write:settings'), async (req, res, next) => {
   try {
-    const newValue = req.body;
+    const existingRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
+    const currentVal = (existingRes.rows && existingRes.rows[0]) ? existingRes.rows[0].value : {};
+
+    // Deep merge to guarantee untouched sections/fields are preserved
+    const newValue = {
+      ...currentVal,
+      ...req.body,
+      heroSection: req.body.heroSection ? { ...(currentVal.heroSection || {}), ...req.body.heroSection } : currentVal.heroSection,
+      ctaSection: req.body.ctaSection ? { ...(currentVal.ctaSection || {}), ...req.body.ctaSection } : currentVal.ctaSection,
+      aboutSection: req.body.aboutSection ? {
+        ...(currentVal.aboutSection || {}),
+        ...req.body.aboutSection,
+        banner: req.body.aboutSection.banner ? { ...(currentVal.aboutSection?.banner || {}), ...req.body.aboutSection.banner } : currentVal.aboutSection?.banner,
+        philosophy: req.body.aboutSection.philosophy ? { ...(currentVal.aboutSection?.philosophy || {}), ...req.body.aboutSection.philosophy } : currentVal.aboutSection?.philosophy,
+        values: req.body.aboutSection.values || currentVal.aboutSection?.values
+      } : currentVal.aboutSection,
+      socialLinks: req.body.socialLinks ? { ...(currentVal.socialLinks || {}), ...req.body.socialLinks } : currentVal.socialLinks,
+      rules: req.body.rules ? { ...(currentVal.rules || {}), ...req.body.rules } : currentVal.rules
+    };
 
     const result = await query(
       `INSERT INTO settings (key, value)
