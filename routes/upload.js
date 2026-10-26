@@ -79,11 +79,11 @@ router.post('/', (req, res) => {
       console.warn('[Upload] Failed to persist file into PostgreSQL:', dbErr.message);
     }
 
-    // Return the public URL for static serving
+    // Return the database asset path for static serving
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.get('host');
-    const fileUrl = `${protocol}://${host}/assets/${req.file.filename}`;
-    res.json({ imageUrl: fileUrl });
+    const relativeUrl = `/assets/${req.file.filename}`;
+    res.json({ imageUrl: relativeUrl, fullUrl: `${protocol}://${host}${relativeUrl}` });
   });
 });
 

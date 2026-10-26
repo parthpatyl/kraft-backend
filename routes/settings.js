@@ -37,9 +37,9 @@ router.get('/', async (req, res, next) => {
       defaultAgentSplit: 40,
       inrToUsdRate: 0,
       agencyName: 'KRAFT YOUR TRIP',
-      agencyAddress: '456 Sandstone Ave, Suite 100, San Francisco, CA',
+      agencyAddress: 'Mumbai, Maharashtra, India',
       agencyPhone: '+91 7046704693',
-      agencyEmail: 'concierge@kraftyourtrip.com',
+      agencyEmail: 'contact@kraftyourtrip.com',
       permissions: {
         admin: { viewFinancials: true, editPricing: true, supplierCreds: true, clientScans: true },
         manager: { viewFinancials: true, editPricing: true, supplierCreds: false, clientScans: true },
