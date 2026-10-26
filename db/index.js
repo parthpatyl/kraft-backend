@@ -443,6 +443,17 @@ export const migrationsReady = (async () => {
     await pool.query(`ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'approved'`);
   });
 
+  await migrate('uploaded_assets: create table', async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS uploaded_assets (
+        filename VARCHAR(255) PRIMARY KEY,
+        mime_type VARCHAR(100) NOT NULL,
+        data BYTEA NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  });
+
   await migrate('non-destructive baseline seed: packages, group_departures, corporate, testimonials', async () => {
     // 1. Seed packages if fewer than 4 packages exist
     const pkgCountRes = await pool.query(`SELECT COUNT(*)::int FROM packages`);

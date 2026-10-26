@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { query } from './db/index.js';
 
 import requireAuth from './middleware/requireAuth.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
@@ -135,6 +137,34 @@ app.options('*', cors(corsOptions));
 app.use('/api', apiLimiter);
 
 app.use(express.json());
+
+// Serve uploaded assets with automatic PostgreSQL database recovery for ephemeral hosting (e.g. Render)
+app.use('/assets', async (req, res, next) => {
+  const filename = path.basename(req.path);
+  const filePath = path.join(__dirname, 'assets', filename);
+  if (fs.existsSync(filePath)) {
+    return next();
+  }
+  try {
+    const assetRes = await query('SELECT mime_type, data FROM uploaded_assets WHERE filename = $1', [filename]);
+    if (assetRes.rows && assetRes.rows.length > 0) {
+      const { mime_type, data } = assetRes.rows[0];
+      try {
+        const assetsDir = path.join(__dirname, 'assets');
+        if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
+        fs.writeFileSync(filePath, data);
+      } catch (cacheErr) {
+        // Fall back to direct stream if disk write fails
+      }
+      res.setHeader('Content-Type', mime_type);
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.send(data);
+    }
+  } catch (dbErr) {
+    // Ignore and proceed to static handler (which will 404 cleanly)
+  }
+  next();
+});
 
 // Serve uploaded assets statically
 app.use('/assets', express.static(path.join(__dirname, 'assets')));

@@ -105,6 +105,14 @@ CREATE TABLE IF NOT EXISTS settings (
     value JSONB NOT NULL
 );
 
+-- Persistent Uploaded Assets Table (survives ephemeral hosting restarts)
+CREATE TABLE IF NOT EXISTS uploaded_assets (
+    filename VARCHAR(255) PRIMARY KEY,
+    mime_type VARCHAR(100) NOT NULL,
+    data BYTEA NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Testimonials Table
 CREATE TABLE IF NOT EXISTS testimonials (
     id SERIAL PRIMARY KEY,

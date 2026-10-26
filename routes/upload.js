@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
+import { query } from '../db/index.js';
 
 const router = express.Router();
 
@@ -51,7 +52,7 @@ const upload = multer({
 });
 
 router.post('/', (req, res) => {
-  upload.single('image')(req, res, function (err) {
+  upload.single('image')(req, res, async function (err) {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         return res.status(400).json({ error: 'File size exceeds the 5MB limit!' });
@@ -63,6 +64,19 @@ router.post('/', (req, res) => {
 
     if (!req.file) {
       return res.status(400).json({ error: 'Please upload an image!' });
+    }
+
+    // Persist to PostgreSQL database so it survives Render ephemeral container restarts
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      await query(
+        `INSERT INTO uploaded_assets (filename, mime_type, data)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (filename) DO UPDATE SET data = EXCLUDED.data, mime_type = EXCLUDED.mime_type`,
+        [req.file.filename, req.file.mimetype, fileBuffer]
+      );
+    } catch (dbErr) {
+      console.warn('[Upload] Failed to persist file into PostgreSQL:', dbErr.message);
     }
 
     // Return the public URL for static serving
