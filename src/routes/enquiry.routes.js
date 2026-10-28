@@ -8,6 +8,7 @@ import {
   getEnquiryById,
   listEnquiries,
   updateEnquiryStatus,
+  convertToBooking,
 } from '../controllers/enquiryController.js';
 
 const router = Router();
@@ -16,6 +17,7 @@ router.get('/status', getEnquiryStatus);
 router.post('/submit', publicFormLimiter, validateEnquiry, submitEnquiry);
 router.get('/', requireAuth, listEnquiries);
 router.put('/:id/status', requireAuth, updateEnquiryStatus);
+router.post('/:id/convert-to-booking', requireAuth, convertToBooking);
 router.get('/:id', getEnquiryById);
 
 export default router;

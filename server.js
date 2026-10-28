@@ -166,8 +166,13 @@ app.use('/assets', async (req, res, next) => {
   next();
 });
 
-// Serve uploaded assets statically
-app.use('/assets', express.static(path.join(__dirname, 'assets')));
+// Serve uploaded assets statically with strong browser caching headers for high performance
+app.use('/assets', express.static(path.join(__dirname, 'assets'), {
+  maxAge: '7d',
+  immutable: true,
+  etag: true,
+  lastModified: true
+}));
 
 // Auth routes (no auth required)
 app.use('/api/auth', authRouter);

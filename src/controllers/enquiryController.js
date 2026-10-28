@@ -43,7 +43,7 @@ function maskName(name) {
   }).join(' ');
 }
 
-const VALID_STATUSES = ['logged', 'reviewing', 'proposing', 'finalized'];
+const VALID_STATUSES = ['logged', 'contacted', 'reviewing', 'proposing', 'finalized', 'converted'];
 
 export async function submitEnquiry(req, res) {
   try {
@@ -283,6 +283,86 @@ export async function updateEnquiryStatus(req, res) {
       stack: err.stack,
     });
     return res.status(500).json({ status: 'error', message: 'Failed to update enquiry status.' });
+  }
+}
+
+export async function convertToBooking(req, res) {
+  try {
+    const { id } = req.params;
+    const { status: targetStatus = 'Confirmed' } = req.body || {};
+
+    // 1. If this was already a BK-* booking record created via customer inquiry, ensure booking status is Confirmed
+    if (id.startsWith('BK-')) {
+      const bRes = await query('UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *', [targetStatus, id]);
+      await query('UPDATE enquiries SET status = $1 WHERE id = $2', ['converted', id]);
+      if (bRes.rows.length > 0) {
+        return res.status(200).json({
+          status: 'success',
+          message: `Enquiry successfully pushed to active booking (${bRes.rows[0].id})`,
+          data: { booking: bRes.rows[0] }
+        });
+      }
+    }
+
+    // 2. Lookup the enquiry
+    const enqRes = await query('SELECT * FROM enquiries WHERE id = $1', [id]);
+    if (enqRes.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Enquiry not found' });
+    }
+    const enq = enqRes.rows[0];
+
+    // 3. Find or create client
+    let client = null;
+    if (enq.email) {
+      const cRes = await query('SELECT * FROM clients WHERE LOWER(email) = LOWER($1)', [enq.email.trim()]);
+      if (cRes.rows.length > 0) client = cRes.rows[0];
+    }
+    if (!client) {
+      const newClientId = `CLI-${Date.now().toString(36).toUpperCase()}`;
+      const cInsert = await query(`
+        INSERT INTO clients (id, name, email, phone, location, status, tier, bookings_count, ltv, wallet_balance, preferences, passport, visa, emergency_contact, logs)
+        VALUES ($1, $2, $3, $4, $5, 'Active', 'Silver', 1, 0, 0, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $6)
+        RETURNING *
+      `, [
+        newClientId,
+        enq.name || 'Valued Traveler',
+        enq.email || `${newClientId.toLowerCase()}@kraftclient.com`,
+        enq.phone || '',
+        'Direct Client',
+        JSON.stringify([{ time: new Date().toISOString().replace('T', ' ').substring(0, 16), text: `System: Client profile created on conversion of enquiry ${id}` }])
+      ]);
+      client = cInsert.rows[0];
+    }
+
+    // 4. Generate new booking record
+    const newBookingId = `BK-${Date.now().toString(36).toUpperCase()}`;
+    const guests = parseInt(enq.guests, 10) || 1;
+    const bookingRes = await query(`
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      RETURNING *
+    `, [
+      newBookingId, client.name, client.id,
+      enq.destination || 'Custom Luxury Tour', null, null,
+      0, 0, 0,
+      'none', 0,
+      enq.travel_date || null, targetStatus, 'Unassigned',
+      guests, '[]'::jsonb, enq.notes || '',
+      enq.travel_date || null, null,
+      JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false })
+    ]);
+
+    // 5. Update enquiry status to 'converted'
+    await query('UPDATE enquiries SET status = $1 WHERE id = $2', ['converted', id]);
+
+    return res.status(200).json({
+      status: 'success',
+      message: `Enquiry successfully converted to booking ${newBookingId}`,
+      data: { booking: bookingRes.rows[0] }
+    });
+  } catch (err) {
+    logger.error('Error converting enquiry to booking', { error: err.message, stack: err.stack });
+    return res.status(500).json({ status: 'error', message: 'Failed to convert enquiry to booking.' });
   }
 }
 
