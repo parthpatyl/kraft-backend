@@ -14,7 +14,7 @@ const initialBookings = [];
 const initialUsers = [
   {
     name: 'Admin',
-    email: 'admin@kraftyourtrip.com',
+    email: 'info@kraftyourtrip.com',
     password: 'admin123',
     role: 'admin',
     avatarUrl: null,

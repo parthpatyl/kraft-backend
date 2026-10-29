@@ -6,6 +6,8 @@ import { requirePermission } from '../middleware/requireRole.js';
 import { roleHas } from '../middleware/permissions.js';
 import { notifyAll } from '../middleware/notify.js';
 import { processEnquiryEmails } from '../src/services/emailQueue.js';
+import { sendEmail } from '../src/services/emailService.js';
+import emailConfig from '../src/config/email.config.js';
 import logger from '../src/utils/logger.js';
 import { publicFormLimiter } from '../middleware/rateLimiter.js';
 
@@ -22,6 +24,10 @@ export function mapBookingToFrontend(row, { inrToUsdRate = 0 } = {}) {
     id: row.id,
     client: row.client_name,
     client_id: row.client_id,
+    clientEmail: row.client_email || '',
+    clientPhone: row.client_phone || '',
+    clientTier: row.client_tier || 'Silver',
+    clientStatus: row.client_status || 'Active',
     package: row.package_name,
     package_id: row.package_id,
     departureId: row.departure_id || null,
@@ -65,7 +71,12 @@ function formatDateToString(dateStr) {
 router.get('/', requirePermission('read:bookings'), async (req, res, next) => {
   try {
     const [result, settingsRes] = await Promise.all([
-      query('SELECT * FROM bookings ORDER BY created_at DESC'),
+      query(`
+        SELECT b.*, c.email AS client_email, c.phone AS client_phone, c.tier AS client_tier, c.status AS client_status
+        FROM bookings b
+        LEFT JOIN clients c ON b.client_id = c.id
+        ORDER BY b.created_at DESC
+      `),
       query("SELECT value FROM settings WHERE key = 'agency_settings'")
     ]);
     const inrToUsdRate = settingsRes.rows[0]?.value?.inrToUsdRate || 0;
@@ -837,6 +848,61 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
 
     await dbClient.query('COMMIT');
     began = false;
+
+    // Direct SMTP alert to agency admin
+    try {
+      const adminRecipient = emailConfig.adminEmail || 'info@kraftyourtrip.com';
+      const cleanPhone = phone.trim().replace(/[^\d+]/g, '');
+      const waLink = `https://wa.me/${cleanPhone.replace('+', '')}?text=${encodeURIComponent(`Hi ${name.trim()}, thank you for your travel inquiry regarding "${packageNameSelected}" with Kraft Your Trip!`)}`;
+      
+      sendEmail({
+        to: adminRecipient,
+        subject: `New Booking Inquiry: ${name.trim()} - ${packageNameSelected}`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 28px 24px; border: 1px solid #e7e5e4; border-radius: 16px; background-color: #ffffff;">
+            <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #b45309; background-color: #fef3c7; padding: 4px 10px; border-radius: 6px;">New Booking Inquiry</span>
+            <h2 style="color: #1c1917; margin: 12px 0 4px 0; font-size: 20px; font-weight: 700;">${packageNameSelected}</h2>
+            <p style="color: #78716c; font-size: 13px; margin: 0 0 18px 0;">Reference: <strong>${bookingId}</strong></p>
+
+            <div style="background-color: #fafaf9; border: 1px solid #e7e5e4; border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <tr>
+                  <td style="padding: 6px 0; color: #78716c; width: 120px;">Client:</td>
+                  <td style="padding: 6px 0; color: #1c1917; font-weight: 700;">${name.trim()}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #78716c;">Email:</td>
+                  <td style="padding: 6px 0; color: #1c1917;"><a href="mailto:${email}" style="color: #d97706; text-decoration: none; font-weight: 600;">${email}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #78716c;">Phone:</td>
+                  <td style="padding: 6px 0; color: #1c1917; font-weight: 600;"><a href="tel:${cleanPhone}" style="color: #1c1917; text-decoration: none;">${cleanPhone}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #78716c;">Guests / Dates:</td>
+                  <td style="padding: 6px 0; color: #1c1917;">${guestCount} Guests &bull; Date: ${startDate || 'Flexible'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; color: #78716c;">Amount:</td>
+                  <td style="padding: 6px 0; color: #1c1917; font-weight: 700; color: #b45309;">₹${netAmount.toLocaleString('en-IN')}</td>
+                </tr>
+                ${notes ? `<tr><td style="padding: 6px 0; color: #78716c;">Special Notes:</td><td style="padding: 6px 0; color: #57534e;">${notes}</td></tr>` : ''}
+              </table>
+            </div>
+
+            <div>
+              <a href="${waLink}" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px;">Open in WhatsApp &rarr;</a>
+              <a href="${emailConfig.adminUrl || 'http://localhost:5174'}" style="display: inline-block; background-color: #d97706; color: #ffffff; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; margin-left: 8px;">View in Portal</a>
+            </div>
+          </div>
+        `,
+        text: `New booking inquiry from ${name.trim()} (${email}, ${cleanPhone}) for ${packageNameSelected}. Booking ID: ${bookingId}. Guests: ${guestCount}. Value: ₹${netAmount}.`
+      }).catch(err => {
+        logger.warn('Direct SMTP admin alert failed', { error: err.message });
+      });
+    } catch (e) {
+      logger.warn('Could not construct admin alert', { error: e.message });
+    }
 
     // 6. Queue confirmation emails (non-blocking, fire-and-forget)
     processEnquiryEmails({

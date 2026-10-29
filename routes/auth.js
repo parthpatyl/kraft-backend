@@ -53,6 +53,28 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+router.post('/update-profile', requireAuth, async (req, res, next) => {
+  try {
+    const { name, email } = req.body;
+    if (email && !/\S+@\S+\.\S+/.test(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    if (email) {
+      const existing = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: 'A user with this email already exists' });
+      }
+    }
+    const result = await query(
+      `UPDATE users SET name = COALESCE($1, name), email = COALESCE($2, email) WHERE id = $3 RETURNING id, name, email, role, avatar_url`,
+      [name !== undefined && name.trim() ? name.trim() : null, email !== undefined && email.trim() ? email.trim() : null, req.user.id]
+    );
+    res.json({ message: 'Profile updated successfully', user: result.rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/change-password', requireAuth, async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;

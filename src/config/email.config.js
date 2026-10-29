@@ -22,7 +22,7 @@ const emailConfig = {
   },
   fromName: cleanEnvStr(process.env.SMTP_FROM_NAME, 'Kraft Your Trip'),
   fromEmail: cleanEnvStr(process.env.SMTP_FROM_EMAIL) || cleanEnvStr(process.env.GOOGLE_SMTP_USER, ''),
-  adminEmail: cleanEnvStr(process.env.ADMIN_EMAIL, ''),
+  adminEmail: cleanEnvStr(process.env.ADMIN_EMAIL, 'info@kraftyourtrip.com'),
   appUrl: cleanEnvStr(process.env.APP_URL, 'http://localhost:5000'),
   adminUrl: cleanEnvStr(process.env.ADMIN_URL) || cleanEnvStr(process.env.APP_URL, 'http://localhost:5000'),
   pool: true,
