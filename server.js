@@ -26,6 +26,7 @@ import usersRouter from './routes/users.js';
 import approvalsRouter from './routes/approvals.js';
 import statsRouter from './routes/stats.js';
 import specialityCategoriesRouter from './routes/specialityCategories.js';
+import navigationRouter from './routes/navigation.js';
 import enquiryRouter from './src/routes/enquiry.routes.js';
 import logger from './src/utils/logger.js';
 import { verifyConnection, createTransporter } from './src/services/emailService.js';
@@ -195,6 +196,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/approvals', approvalsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/speciality-categories', specialityCategoriesRouter);
+app.use('/api/navigation', navigationRouter);
 
 // Enquiry routes (SMTP-powered)
 app.use('/api/enquiries', enquiryRouter);
