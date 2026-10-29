@@ -347,7 +347,7 @@ export async function convertToBooking(req, res) {
       0, 0, 0,
       'none', 0,
       enq.travel_date || null, targetStatus, 'Unassigned',
-      guests, '[]'::jsonb, enq.notes || '',
+      guests, JSON.stringify([]), enq.notes || '',
       enq.travel_date || null, null,
       JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false })
     ]);
