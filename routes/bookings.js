@@ -10,7 +10,7 @@ import { sendEmail } from '../src/services/emailService.js';
 import emailConfig from '../src/config/email.config.js';
 import logger from '../src/utils/logger.js';
 import { publicFormLimiter } from '../middleware/rateLimiter.js';
-import { validateEmail, validatePhone, validateName } from '../src/utils/validation.js';
+import { validateEmail, validatePhone, validateName, validatePrice, validateGuests } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -121,6 +121,21 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
   const leadSource = inputLeadSource || inputLeadSourceSnake || null;
   const referralName = inputReferralName || inputReferralNameSnake || null;
   const id = req.body.id || `BK-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
+
+  if (amount !== undefined && amount !== null && amount !== '') {
+    const amountCheck = validatePrice(amount, 'Booking amount');
+    if (!amountCheck.isValid) {
+      return res.status(400).json({ error: amountCheck.error, field: 'amount' });
+    }
+  }
+
+  if (guests !== undefined && guests !== null && guests !== '') {
+    const guestsCheck = validateGuests(guests);
+    if (!guestsCheck.isValid) {
+      return res.status(400).json({ error: guestsCheck.error, field: 'guests' });
+    }
+  }
+
   const guestCount = parseInt(guests) || 1;
 
   let clientId = null;
@@ -722,6 +737,21 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
   name = nameCheck.normalized;
   email = emailCheck.normalized;
   phone = phoneCheck.formatted;
+
+  if (!isItineraryDownload && guests !== undefined && guests !== null && guests !== '') {
+    const guestsCheck = validateGuests(guests);
+    if (!guestsCheck.isValid) {
+      return res.status(400).json({ error: guestsCheck.error, field: 'guests' });
+    }
+  }
+
+  if (req.body.estimatedAmount !== undefined && req.body.estimatedAmount !== null && req.body.estimatedAmount !== '') {
+    const estAmountCheck = validatePrice(req.body.estimatedAmount, 'Estimated amount');
+    if (!estAmountCheck.isValid) {
+      return res.status(400).json({ error: estAmountCheck.error, field: 'estimatedAmount' });
+    }
+  }
+
   if (!packageId) {
     return res.status(400).json({ error: 'Package ID is required' });
   }

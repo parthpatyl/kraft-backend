@@ -2,17 +2,17 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
 import { publicFormLimiter } from '../middleware/rateLimiter.js';
+import { validateEmail, validatePhone, validateName, validatePrice, validateInteger, validatePercentage, validateNumber } from '../src/utils/validation.js';
 
 const router = Router();
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 function validateLeadFields(name, mobile, workEmail, companyName, message) {
-  if (!name || !name.trim()) return 'Name is required';
-  if (!mobile || !mobile.trim()) return 'Mobile number is required';
-  if (!/^\+?\d{7,15}$/.test(mobile.trim())) return 'Invalid mobile number format (digits only, 7-15 chars)';
-  if (!workEmail || !workEmail.trim()) return 'Work email is required';
-  if (!EMAIL_RE.test(workEmail.trim())) return 'Invalid email format';
+  const nameCheck = validateName(name);
+  if (!nameCheck.isValid) return nameCheck.error;
+  const mobileCheck = validatePhone(mobile);
+  if (!mobileCheck.isValid) return mobileCheck.error;
+  const emailCheck = validateEmail(workEmail);
+  if (!emailCheck.isValid) return emailCheck.error;
   if (!companyName || !companyName.trim()) return 'Company name is required';
   if (message && message.length > 1000) return 'Message must be 1000 characters or fewer';
   return null;
@@ -34,6 +34,23 @@ router.post('/', publicFormLimiter, async (req, res, next) => {
     const validationError = validateLeadFields(name, mobile, workEmail, companyName, message);
     if (validationError) {
       return res.status(400).json({ error: validationError });
+    }
+
+    if (perPersonRate !== undefined && perPersonRate !== null && perPersonRate !== '') {
+      const rateCheck = validatePrice(perPersonRate, 'Per person rate');
+      if (!rateCheck.isValid) return res.status(400).json({ error: rateCheck.error, field: 'perPersonRate' });
+    }
+    if (groupSize !== undefined && groupSize !== null && groupSize !== '') {
+      const groupCheck = validateInteger(groupSize, { min: 1, fieldName: 'Group size' });
+      if (!groupCheck.isValid) return res.status(400).json({ error: groupCheck.error, field: 'groupSize' });
+    }
+    if (taxRate !== undefined && taxRate !== null && taxRate !== '') {
+      const taxCheck = validatePercentage(taxRate, 'Tax rate');
+      if (!taxCheck.isValid) return res.status(400).json({ error: taxCheck.error, field: 'taxRate' });
+    }
+    if (discountValue !== undefined && discountValue !== null && discountValue !== '') {
+      const discCheck = validateNumber(discountValue, { min: 0, fieldName: 'Discount value' });
+      if (!discCheck.isValid) return res.status(400).json({ error: discCheck.error, field: 'discountValue' });
     }
 
     const msg = (message || '').slice(0, 1000);
@@ -74,6 +91,23 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     const validationError = validateLeadFields(name, mobile, workEmail, companyName, message);
     if (validationError) {
       return res.status(400).json({ error: validationError });
+    }
+
+    if (perPersonRate !== undefined && perPersonRate !== null && perPersonRate !== '') {
+      const rateCheck = validatePrice(perPersonRate, 'Per person rate');
+      if (!rateCheck.isValid) return res.status(400).json({ error: rateCheck.error, field: 'perPersonRate' });
+    }
+    if (groupSize !== undefined && groupSize !== null && groupSize !== '') {
+      const groupCheck = validateInteger(groupSize, { min: 1, fieldName: 'Group size' });
+      if (!groupCheck.isValid) return res.status(400).json({ error: groupCheck.error, field: 'groupSize' });
+    }
+    if (taxRate !== undefined && taxRate !== null && taxRate !== '') {
+      const taxCheck = validatePercentage(taxRate, 'Tax rate');
+      if (!taxCheck.isValid) return res.status(400).json({ error: taxCheck.error, field: 'taxRate' });
+    }
+    if (discountValue !== undefined && discountValue !== null && discountValue !== '') {
+      const discCheck = validateNumber(discountValue, { min: 0, fieldName: 'Discount value' });
+      if (!discCheck.isValid) return res.status(400).json({ error: discCheck.error, field: 'discountValue' });
     }
 
     const result = await query(

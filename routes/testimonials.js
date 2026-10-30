@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { requirePermission } from '../middleware/requireRole.js';
+import { validateName, validateRating } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -50,8 +51,11 @@ router.post('/public', async (req, res, next) => {
     if (text && text.length > 2000) {
       return res.status(400).json({ error: 'Review text must be 2000 characters or fewer' });
     }
-    if (rating !== undefined && (rating < 1 || rating > 5)) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    if (rating !== undefined && rating !== null && rating !== '') {
+      const ratingCheck = validateRating(rating);
+      if (!ratingCheck.isValid) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      }
     }
 
     const result = await query(
@@ -88,8 +92,11 @@ router.post('/', requirePermission('write:testimonials'), async (req, res, next)
     if (text && text.length > 2000) {
       return res.status(400).json({ error: 'Review text must be 2000 characters or fewer' });
     }
-    if (rating !== undefined && (rating < 1 || rating > 5)) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    if (rating !== undefined && rating !== null && rating !== '') {
+      const ratingCheck = validateRating(rating);
+      if (!ratingCheck.isValid) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      }
     }
     const result = await query(
       `INSERT INTO testimonials (name, location, avatar, rating, text, images, package, type, role, company, status)
@@ -124,8 +131,11 @@ router.put('/:id', requirePermission('write:testimonials'), async (req, res, nex
     if (text && text.length > 2000) {
       return res.status(400).json({ error: 'Review text must be 2000 characters or fewer' });
     }
-    if (rating !== undefined && (rating < 1 || rating > 5)) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    if (rating !== undefined && rating !== null && rating !== '') {
+      const ratingCheck = validateRating(rating);
+      if (!ratingCheck.isValid) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      }
     }
 
     const current = await query('SELECT * FROM testimonials WHERE id = $1', [id]);

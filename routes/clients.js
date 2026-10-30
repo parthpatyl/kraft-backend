@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
 import { roleHas } from '../middleware/permissions.js';
+import { validateEmail, validatePhone, validateName, validatePrice } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -59,19 +60,29 @@ router.post('/', requirePermission('write:clients.profile'), async (req, res, ne
       logs
     } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: 'Name is required' });
+    const nameCheck = validateName(name);
+    if (!nameCheck.isValid) {
+      return res.status(400).json({ error: nameCheck.error, field: 'name' });
     }
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      return res.status(400).json({ error: 'A valid email is required' });
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      return res.status(400).json({ error: emailCheck.error, field: 'email' });
     }
-    if (!phone || !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
-      return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+    const phoneCheck = validatePhone(phone);
+    if (!phoneCheck.isValid) {
+      return res.status(400).json({ error: phoneCheck.error, field: 'phone' });
     }
-    if (walletBalance !== undefined) {
+    if (walletBalance !== undefined && walletBalance !== null && walletBalance !== '') {
       const parsed = typeof walletBalance === 'string' ? parseFloat(walletBalance.replace(/[^0-9.-]+/g, '')) : Number(walletBalance);
-      if (isNaN(parsed) || parsed < 0) {
-        return res.status(400).json({ error: 'Initial travel credit must be a non-negative number' });
+      const walletCheck = validatePrice(parsed, 'Initial travel credit');
+      if (!walletCheck.isValid) {
+        return res.status(400).json({ error: 'Initial travel credit must be a non-negative number', field: 'walletBalance' });
+      }
+    }
+    if (emergencyContact?.phone) {
+      const emergCheck = validatePhone(emergencyContact.phone);
+      if (!emergCheck.isValid) {
+        return res.status(400).json({ error: `Emergency contact: ${emergCheck.error}`, field: 'emergencyContact.phone' });
       }
     }
     if (passport) {
@@ -162,19 +173,35 @@ router.put('/:id', requirePermission('write:clients.profile'), async (req, res, 
       logs
     } = req.body;
 
-    if (name !== undefined && !name.trim()) {
-      return res.status(400).json({ error: 'Name cannot be empty' });
+    if (name !== undefined) {
+      const nameCheck = validateName(name);
+      if (!nameCheck.isValid) {
+        return res.status(400).json({ error: nameCheck.error, field: 'name' });
+      }
     }
-    if (email !== undefined && !/\S+@\S+\.\S+/.test(email)) {
-      return res.status(400).json({ error: 'A valid email is required' });
+    if (email !== undefined) {
+      const emailCheck = validateEmail(email);
+      if (!emailCheck.isValid) {
+        return res.status(400).json({ error: emailCheck.error, field: 'email' });
+      }
     }
-    if (phone !== undefined && !/^[+0-9\s-()]{7,20}$/.test(phone.trim())) {
-      return res.status(400).json({ error: 'A valid phone number is required (at least 7 digits)' });
+    if (phone !== undefined) {
+      const phoneCheck = validatePhone(phone);
+      if (!phoneCheck.isValid) {
+        return res.status(400).json({ error: phoneCheck.error, field: 'phone' });
+      }
     }
-    if (walletBalance !== undefined) {
+    if (walletBalance !== undefined && walletBalance !== null && walletBalance !== '') {
       const parsed = typeof walletBalance === 'string' ? parseFloat(walletBalance.replace(/[^0-9.-]+/g, '')) : Number(walletBalance);
-      if (isNaN(parsed) || parsed < 0) {
-        return res.status(400).json({ error: 'Travel wallet credit must be a non-negative number' });
+      const walletCheck = validatePrice(parsed, 'Travel wallet credit');
+      if (!walletCheck.isValid) {
+        return res.status(400).json({ error: 'Travel wallet credit must be a non-negative number', field: 'walletBalance' });
+      }
+    }
+    if (emergencyContact?.phone) {
+      const emergCheck = validatePhone(emergencyContact.phone);
+      if (!emergCheck.isValid) {
+        return res.status(400).json({ error: `Emergency contact: ${emergCheck.error}`, field: 'emergencyContact.phone' });
       }
     }
     if (passport !== undefined) {

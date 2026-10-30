@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
+import { validatePrice, validateInteger, validateNumber } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -85,6 +86,26 @@ router.post('/', requirePermission('create:packages', 'write:packages'), async (
   try {
     const { packageId, title, departureDate, returnDate, slotsTotal, priceModifier, costPrice, ctaBadge, inclusions, exclusions, highlights, itinerary, status, notes, termsAndConditions, slots } = req.body;
     const finalSlotsTotal = slotsTotal ?? slots?.total ?? 20;
+
+    const slotsCheck = validateInteger(finalSlotsTotal, { min: 1, fieldName: 'slotsTotal' });
+    if (!slotsCheck.isValid) {
+      return res.status(400).json({ error: slotsCheck.error, field: 'slotsTotal' });
+    }
+
+    if (priceModifier !== undefined && priceModifier !== null && priceModifier !== '') {
+      const modCheck = validateNumber(priceModifier, { fieldName: 'priceModifier' });
+      if (!modCheck.isValid) {
+        return res.status(400).json({ error: modCheck.error, field: 'priceModifier' });
+      }
+    }
+
+    if (costPrice !== undefined && costPrice !== null && costPrice !== '') {
+      const costCheck = validatePrice(costPrice, 'costPrice');
+      if (!costCheck.isValid) {
+        return res.status(400).json({ error: costCheck.error, field: 'costPrice' });
+      }
+    }
+
     const finalItinerary = typeof itinerary === 'string' ? itinerary : JSON.stringify(itinerary || []);
 
     const result = await query(
@@ -140,6 +161,31 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
 
     const finalSlotsTotal = slotsTotal ?? slots?.total ?? current.rows[0].slots_total;
     const finalSlotsBooked = slotsBooked ?? slots?.booked ?? current.rows[0].slots_booked;
+
+    const slotsCheck = validateInteger(finalSlotsTotal, { min: 1, fieldName: 'slotsTotal' });
+    if (!slotsCheck.isValid) {
+      return res.status(400).json({ error: slotsCheck.error, field: 'slotsTotal' });
+    }
+
+    const bookedCheck = validateInteger(finalSlotsBooked, { min: 0, fieldName: 'slotsBooked' });
+    if (!bookedCheck.isValid) {
+      return res.status(400).json({ error: bookedCheck.error, field: 'slotsBooked' });
+    }
+
+    if (priceModifier !== undefined && priceModifier !== null && priceModifier !== '') {
+      const modCheck = validateNumber(priceModifier, { fieldName: 'priceModifier' });
+      if (!modCheck.isValid) {
+        return res.status(400).json({ error: modCheck.error, field: 'priceModifier' });
+      }
+    }
+
+    if (costPrice !== undefined && costPrice !== null && costPrice !== '') {
+      const costCheck = validatePrice(costPrice, 'costPrice');
+      if (!costCheck.isValid) {
+        return res.status(400).json({ error: costCheck.error, field: 'costPrice' });
+      }
+    }
+
     const finalItinerary = itinerary !== undefined 
       ? (typeof itinerary === 'string' ? itinerary : JSON.stringify(itinerary || []))
       : current.rows[0].itinerary;

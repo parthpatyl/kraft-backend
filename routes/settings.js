@@ -3,6 +3,7 @@ import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
 import { roleHas } from '../middleware/permissions.js';
 import jwt from 'jsonwebtoken';
+import { validateEmail, validatePhone, validatePercentage, validateNumber } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -167,6 +168,41 @@ router.get('/', async (req, res, next) => {
 // PUT update settings
 router.put('/', requirePermission('write:settings'), async (req, res, next) => {
   try {
+    if (req.body.agencyEmail) {
+      const emailCheck = validateEmail(req.body.agencyEmail);
+      if (!emailCheck.isValid) {
+        return res.status(400).json({ error: emailCheck.error, field: 'agencyEmail' });
+      }
+    }
+
+    if (req.body.agencyPhone) {
+      const phoneCheck = validatePhone(req.body.agencyPhone);
+      if (!phoneCheck.isValid) {
+        return res.status(400).json({ error: phoneCheck.error, field: 'agencyPhone' });
+      }
+    }
+
+    if (req.body.defaultMarkup !== undefined && req.body.defaultMarkup !== null && req.body.defaultMarkup !== '') {
+      const markupCheck = validatePercentage(req.body.defaultMarkup, 'Default Markup');
+      if (!markupCheck.isValid) {
+        return res.status(400).json({ error: markupCheck.error, field: 'defaultMarkup' });
+      }
+    }
+
+    if (req.body.defaultAgentSplit !== undefined && req.body.defaultAgentSplit !== null && req.body.defaultAgentSplit !== '') {
+      const splitCheck = validatePercentage(req.body.defaultAgentSplit, 'Agent Commission Split');
+      if (!splitCheck.isValid) {
+        return res.status(400).json({ error: splitCheck.error, field: 'defaultAgentSplit' });
+      }
+    }
+
+    if (req.body.inrToUsdRate !== undefined && req.body.inrToUsdRate !== null && req.body.inrToUsdRate !== '') {
+      const rateCheck = validateNumber(req.body.inrToUsdRate, { min: 0.0001, fieldName: 'inrToUsdRate' });
+      if (!rateCheck.isValid) {
+        return res.status(400).json({ error: rateCheck.error, field: 'inrToUsdRate' });
+      }
+    }
+
     const existingRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
     const currentVal = (existingRes.rows && existingRes.rows[0]) ? existingRes.rows[0].value : {};
 

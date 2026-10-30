@@ -6,6 +6,7 @@ import { requirePermission } from '../middleware/requireRole.js';
 import { sendEmail } from '../src/services/emailService.js';
 import emailConfig from '../src/config/email.config.js';
 import logger from '../src/utils/logger.js';
+import { validateEmail } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -26,7 +27,8 @@ router.post('/', requirePermission('manage:users'), async (req, res, next) => {
   try {
     const { name, email, password, role, avatar_url } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
-    if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Valid email is required' });
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) return res.status(400).json({ error: 'Valid email is required', details: emailCheck.error });
     if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
     if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
       return res.status(400).json({ error: 'Password must be alphanumeric (contain both letters and numbers)' });

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { query } from '../db/index.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
+import { validateEmail } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -56,8 +57,11 @@ router.get('/me', requireAuth, (req, res) => {
 router.post('/update-profile', requireAuth, async (req, res, next) => {
   try {
     const { name, email } = req.body;
-    if (email && !/\S+@\S+\.\S+/.test(email)) {
-      return res.status(400).json({ error: 'Valid email is required' });
+    if (email) {
+      const emailCheck = validateEmail(email);
+      if (!emailCheck.isValid) {
+        return res.status(400).json({ error: 'Valid email is required', details: emailCheck.error });
+      }
     }
     if (email) {
       const existing = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.user.id]);

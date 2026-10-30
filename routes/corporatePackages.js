@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db/index.js';
 import { requirePermission } from '../middleware/requireRole.js';
 import jwt from 'jsonwebtoken';
+import { validatePrice, validateInteger } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -70,6 +71,12 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
     if (!category || !['india', 'international'].includes(category)) {
       return res.status(400).json({ error: 'Category must be india or international' });
     }
+    if (startingPrice !== undefined && startingPrice !== null && startingPrice !== '') {
+      const priceCheck = validatePrice(startingPrice, 'Starting price');
+      if (!priceCheck.isValid) {
+        return res.status(400).json({ error: priceCheck.error, field: 'startingPrice' });
+      }
+    }
     const result = await query(
       `INSERT INTO corporate_packages (destination, nights, starting_price, category, image_url, description, highlights, itinerary, terms_and_conditions)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -99,6 +106,20 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
 
     if (category !== undefined && !['india', 'international'].includes(category)) {
       return res.status(400).json({ error: 'Category must be india or international' });
+    }
+
+    if (startingPrice !== undefined && startingPrice !== null && startingPrice !== '') {
+      const priceCheck = validatePrice(startingPrice, 'Starting price');
+      if (!priceCheck.isValid) {
+        return res.status(400).json({ error: priceCheck.error, field: 'startingPrice' });
+      }
+    }
+
+    if (displayOrder !== undefined && displayOrder !== null && displayOrder !== '') {
+      const orderCheck = validateInteger(displayOrder, { min: 0, fieldName: 'displayOrder' });
+      if (!orderCheck.isValid) {
+        return res.status(400).json({ error: orderCheck.error, field: 'displayOrder' });
+      }
     }
 
     const current = await query('SELECT * FROM corporate_packages WHERE id = $1', [id]);
