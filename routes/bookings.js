@@ -10,6 +10,7 @@ import { sendEmail } from '../src/services/emailService.js';
 import emailConfig from '../src/config/email.config.js';
 import logger from '../src/utils/logger.js';
 import { publicFormLimiter } from '../middleware/rateLimiter.js';
+import { validateEmail, validatePhone, validateName } from '../src/utils/validation.js';
 
 const router = Router();
 
@@ -701,19 +702,26 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
     inquirySource === 'itinerary-download' ||
     leadSource === 'itinerary_download';
 
-  // Input validation
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'Name is required' });
+  // Input validation & credential verification
+  const nameCheck = validateName(name);
+  if (!nameCheck.isValid) {
+    return res.status(400).json({ error: nameCheck.error });
   }
-  if (!/^[a-zA-Z\s]+$/.test(name.trim())) {
-    return res.status(400).json({ error: 'Name should only contain letters and spaces' });
+
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.isValid) {
+    return res.status(400).json({ error: emailCheck.error });
   }
-  if (!email || !/\S+@\S+\.\S+/.test(email)) {
-    return res.status(400).json({ error: 'A valid email is required' });
+
+  const phoneCheck = validatePhone(phone);
+  if (!phoneCheck.isValid) {
+    return res.status(400).json({ error: phoneCheck.error });
   }
-  if (!phone || !/^\+[1-9]\d{6,19}$/.test(phone.trim())) {
-    return res.status(400).json({ error: 'A valid phone number is required (country code + at least 7 digits)' });
-  }
+
+  // Use normalized credentials
+  name = nameCheck.normalized;
+  email = emailCheck.normalized;
+  phone = phoneCheck.formatted;
   if (!packageId) {
     return res.status(400).json({ error: 'Package ID is required' });
   }

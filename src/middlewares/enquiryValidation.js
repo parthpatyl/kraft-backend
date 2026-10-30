@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { validateEmail, validatePhone, validateName } from '../utils/validation.js';
 
 const enquirySchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required()
@@ -60,6 +61,34 @@ export default function validateEnquiry(req, res, next) {
       status: 'error',
       message: 'Validation failed',
       errors: details,
+    });
+  }
+
+  // Deep Credential & Authenticity Verification
+  const nameCheck = validateName(value.name);
+  if (!nameCheck.isValid) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Validation failed',
+      errors: [{ field: 'name', message: nameCheck.error }],
+    });
+  }
+
+  const emailCheck = validateEmail(value.email);
+  if (!emailCheck.isValid) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Validation failed',
+      errors: [{ field: 'email', message: emailCheck.error }],
+    });
+  }
+
+  const phoneCheck = validatePhone(value.phone);
+  if (!phoneCheck.isValid) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Validation failed',
+      errors: [{ field: 'phone', message: phoneCheck.error }],
     });
   }
 
