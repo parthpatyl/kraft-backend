@@ -709,14 +709,28 @@ export const DEFAULT_NAVIGATION_MENU = [
     label: 'Group Tours',
     type: 'dropdown',
     visible: true,
+    tourHighlights: [
+      { id: 'th-1', title: 'Vietnam Group tour', region: 'Asia', destination: 'Vietnam', active: true },
+      { id: 'th-2', title: 'Aegean Blue Santorini & Mykonos Cruise — Sep 2026', region: 'Europe', destination: 'Greece', active: true },
+      { id: 'th-3', title: 'Swiss Alps Autumn Panorama — Oct 2026 Batch', region: 'Europe', destination: 'Switzerland', active: true },
+      { id: 'th-4', title: 'Kashmir Autumn Houseboat & Snow Valley — Oct 2026', region: 'India', destination: 'Kashmir', active: true },
+      { id: 'th-5', title: 'Great Migration Safari Expedition — Nov 2026', region: 'Africa', destination: 'Safari', active: true },
+      { id: 'th-6', title: 'Vietnam Heritage & Ha Long Bay Cruise — Nov 2026 Batch', region: 'Asia', destination: 'Vietnam', active: true },
+      { id: 'th-7', title: 'Bali Tropical Escape & Nusa Penida', region: 'Asia', destination: 'Bali', active: true },
+      { id: 'th-8', title: 'Serengeti & Masai Mara Wildlife Safari', region: 'Africa', destination: 'Masai Mara', active: true }
+    ],
     columns: [
       {
         heading: 'Popular Group Expeditions',
         links: [
-          { label: 'Greece & Turkey Odyssey', page: 'destinations', region: 'Europe', search: 'Greece' },
-          { label: 'Northern Lights Iceland', page: 'destinations', region: 'Europe', search: 'Iceland' },
-          { label: 'Tuscany Gourmet Trail', page: 'destinations', region: 'Europe', search: 'Tuscany' },
-          { label: 'Kerala Backwaters Group', page: 'destinations', region: 'Asia', search: 'Kerala' },
+          { label: 'Vietnam Group tour', page: 'destinations', region: 'Asia', search: 'Vietnam' },
+          { label: 'Aegean Blue Santorini & Mykonos Cruise — Sep 2026', page: 'destinations', region: 'Europe', search: 'Greece' },
+          { label: 'Swiss Alps Autumn Panorama — Oct 2026 Batch', page: 'destinations', region: 'Europe', search: 'Switzerland' },
+          { label: 'Kashmir Autumn Houseboat & Snow Valley — Oct 2026', page: 'destinations', region: 'India', search: 'Kashmir' },
+          { label: 'Great Migration Safari Expedition — Nov 2026', page: 'destinations', region: 'Africa', search: 'Safari' },
+          { label: 'Vietnam Heritage & Ha Long Bay Cruise — Nov 2026 Batch', page: 'destinations', region: 'Asia', search: 'Vietnam' },
+          { label: 'Bali Tropical Escape & Nusa Penida', page: 'destinations', region: 'Asia', search: 'Bali' },
+          { label: 'Serengeti & Masai Mara Wildlife Safari', page: 'destinations', region: 'Africa', search: 'Masai Mara' }
         ]
       }
     ]
