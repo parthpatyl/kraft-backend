@@ -226,6 +226,15 @@ export const migrationsReady = (async () => {
   await migrate('bookings: progress', () =>
     pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS progress JSONB DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "vouchersIssued": false}'::jsonb`)
   );
+  await migrate('bookings: cancellation_reason', () =>
+    pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cancellation_reason TEXT`)
+  );
+  await migrate('bookings: lead_source', () =>
+    pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS lead_source VARCHAR(100)`)
+  );
+  await migrate('bookings: referral_name', () =>
+    pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS referral_name VARCHAR(255)`)
+  );
 
   await migrate('bookings: progress_final_payment', async () => {
     await pool.query(`ALTER TABLE bookings ALTER COLUMN progress SET DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "finalPayment": false}'::jsonb`);
@@ -364,6 +373,12 @@ export const migrationsReady = (async () => {
 
   await migrate('enquiries: travel_date nullable', () =>
     pool.query(`ALTER TABLE enquiries ALTER COLUMN travel_date DROP NOT NULL`)
+  );
+  await migrate('enquiries: lead_source', () =>
+    pool.query(`ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS lead_source VARCHAR(100)`)
+  );
+  await migrate('enquiries: referral_name', () =>
+    pool.query(`ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS referral_name VARCHAR(255)`)
   );
 
   await migrate('speciality_categories: create table & seed', async () => {

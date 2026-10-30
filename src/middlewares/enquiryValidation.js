@@ -41,7 +41,11 @@ const enquirySchema = Joi.object({
     accommodations: Joi.string().valid('budget', 'standard', 'luxury').optional(),
     dietary: Joi.string().allow('').optional(),
     activities: Joi.array().items(Joi.string()).optional(),
-  }).optional(),
+    leadSource: Joi.string().max(100).allow('', null).optional(),
+    referralName: Joi.string().max(255).allow('', null).optional(),
+  }).unknown(true).optional(),
+  leadSource: Joi.string().max(100).allow('', null).optional(),
+  referralName: Joi.string().max(255).allow('', null).optional(),
 }).options({ stripUnknown: true });
 
 export default function validateEnquiry(req, res, next) {

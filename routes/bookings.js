@@ -46,6 +46,9 @@ export function mapBookingToFrontend(row, { inrToUsdRate = 0 } = {}) {
     endDate: row.end_date,
     progress: row.progress || { quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false },
     specialDirectives: row.special_directives || [],
+    cancellationReason: row.cancellation_reason || null,
+    leadSource: row.lead_source || null,
+    referralName: row.referral_name || null,
     ...(rate ? {
       usdAmount: Math.round(amount / rate * 100) / 100,
       usdTaxAmount: Math.round(taxAmount / rate * 100) / 100,
@@ -103,10 +106,19 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
     progress,
     specialDirectives,
     departureId: inputDepartureId,
-    departure_id: inputDepartureIdSnake
+    departure_id: inputDepartureIdSnake,
+    cancellationReason: inputCancellationReason,
+    cancellation_reason: inputCancellationReasonSnake,
+    leadSource: inputLeadSource,
+    lead_source: inputLeadSourceSnake,
+    referralName: inputReferralName,
+    referral_name: inputReferralNameSnake
   } = req.body;
 
   const departureId = inputDepartureId || inputDepartureIdSnake || null;
+  const cancellationReason = inputCancellationReason || inputCancellationReasonSnake || null;
+  const leadSource = inputLeadSource || inputLeadSourceSnake || null;
+  const referralName = inputReferralName || inputReferralNameSnake || null;
   const id = req.body.id || `BK-${crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`}`;
   const guestCount = parseInt(guests) || 1;
 
@@ -155,8 +167,8 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
     }
 
     const insResult = await dbClient.query(`
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, special_directives)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, special_directives, cancellation_reason, lead_source, referral_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
     `, [
       id, client, clientId, packageName, packageId, departureId,
@@ -165,7 +177,10 @@ router.post('/', requirePermission('write:bookings'), async (req, res, next) => 
       guestCount, JSON.stringify(members), notes || '',
       startDate || null, endDate || null,
       JSON.stringify(progress || { quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false }),
-      JSON.stringify(specialDirectives || [])
+      JSON.stringify(specialDirectives || []),
+      cancellationReason,
+      leadSource,
+      referralName
     ]);
 
     // Log to client logs
@@ -218,7 +233,13 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     progress,
     specialDirectives,
     departureId: inputDepartureId,
-    departure_id: inputDepartureIdSnake
+    departure_id: inputDepartureIdSnake,
+    cancellationReason: inputCancellationReason,
+    cancellation_reason: inputCancellationReasonSnake,
+    leadSource: inputLeadSource,
+    lead_source: inputLeadSourceSnake,
+    referralName: inputReferralName,
+    referral_name: inputReferralNameSnake
   } = req.body;
 
   let current;
@@ -294,95 +315,136 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     const newGuestCount = guests !== undefined ? (parseInt(guests) || 1) : (current.guests || 1);
     const oldGuestCount = current.guests || 1;
 
+    const cancellationReason = inputCancellationReason !== undefined
+      ? inputCancellationReason
+      : (inputCancellationReasonSnake !== undefined ? inputCancellationReasonSnake : current.cancellation_reason);
+    const leadSource = inputLeadSource !== undefined
+      ? inputLeadSource
+      : (inputLeadSourceSnake !== undefined ? inputLeadSourceSnake : current.lead_source);
+    const referralName = inputReferralName !== undefined
+      ? inputReferralName
+      : (inputReferralNameSnake !== undefined ? inputReferralNameSnake : current.referral_name);
+    const updatedDepartureId = inputDepartureId !== undefined
+      ? inputDepartureId
+      : (inputDepartureIdSnake !== undefined ? inputDepartureIdSnake : current.departure_id);
+
     // Handle package changes & slot delta
-    if (packageName !== undefined && packageName !== current.package_name) {
-      const newPkgRes = await dbClient.query('SELECT id, slots_booked, slots_total FROM packages WHERE name = $1', [packageName]);
-      const newPkg = newPkgRes.rows[0];
-      if (newPkg) {
-        // Release old slots
-        if (current.package_id) {
-          await dbClient.query(
-            'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
-            [oldGuestCount, current.package_id]
-          );
-        }
-        // Claim new slots
-        const slotRes = await dbClient.query(
-          'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
-          [newGuestCount, newPkg.id]
-        );
-        if (slotRes.rows.length === 0) {
-          await dbClient.query('ROLLBACK');
-          began = false;
-          return res.status(400).json({ error: `Not enough slots remaining for ${packageName}. Requested ${newGuestCount}.` });
-        }
-        updatedPackageId = newPkg.id;
-      }
-    } else if (newGuestCount !== oldGuestCount) {
-      // Same package but guest count changed — adjust slots by delta
-      const delta = newGuestCount - oldGuestCount;
+    if (current.status !== 'Cancelled' && status === 'Cancelled') {
       if (current.package_id) {
-        if (delta > 0) {
+        await dbClient.query(
+          'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+          [oldGuestCount, current.package_id]
+        );
+      }
+      if (current.departure_id) {
+        await dbClient.query(
+          'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+          [oldGuestCount, current.departure_id]
+        );
+      }
+    } else if (current.status === 'Cancelled' && status !== undefined && status !== 'Cancelled') {
+      if (current.package_id) {
+        await dbClient.query(
+          'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2',
+          [newGuestCount, current.package_id]
+        );
+      }
+      if (current.departure_id) {
+        await dbClient.query(
+          'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2',
+          [newGuestCount, current.departure_id]
+        );
+      }
+    } else if (status !== 'Cancelled') {
+      if (packageName !== undefined && packageName !== current.package_name) {
+        const newPkgRes = await dbClient.query('SELECT id, slots_booked, slots_total FROM packages WHERE name = $1', [packageName]);
+        const newPkg = newPkgRes.rows[0];
+        if (newPkg) {
+          // Release old slots
+          if (current.package_id) {
+            await dbClient.query(
+              'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+              [oldGuestCount, current.package_id]
+            );
+          }
+          // Claim new slots
           const slotRes = await dbClient.query(
             'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
-            [delta, current.package_id]
+            [newGuestCount, newPkg.id]
           );
           if (slotRes.rows.length === 0) {
             await dbClient.query('ROLLBACK');
             began = false;
-            return res.status(400).json({ error: `Not enough slots to add ${delta} more guests.` });
+            return res.status(400).json({ error: `Not enough slots remaining for ${packageName}. Requested ${newGuestCount}.` });
           }
-        } else {
-          await dbClient.query(
-            'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
-            [Math.abs(delta), current.package_id]
-          );
+          updatedPackageId = newPkg.id;
+        }
+      } else if (newGuestCount !== oldGuestCount) {
+        // Same package but guest count changed — adjust slots by delta
+        const delta = newGuestCount - oldGuestCount;
+        if (current.package_id) {
+          if (delta > 0) {
+            const slotRes = await dbClient.query(
+              'UPDATE packages SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+              [delta, current.package_id]
+            );
+            if (slotRes.rows.length === 0) {
+              await dbClient.query('ROLLBACK');
+              began = false;
+              return res.status(400).json({ error: `Not enough slots to add ${delta} more guests.` });
+            }
+          } else {
+            await dbClient.query(
+              'UPDATE packages SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+              [Math.abs(delta), current.package_id]
+            );
+          }
         }
       }
-    }
 
-    // Handle departure slot deltas
-    const oldDepartureId = current.departure_id;
-    const newDepartureId = updatedDepartureId;
-    if (oldDepartureId || newDepartureId) {
-      if (oldDepartureId && newDepartureId && String(oldDepartureId) === String(newDepartureId)) {
-        // Same departure, guest count may have changed
-        const depDelta = newGuestCount - oldGuestCount;
-        if (depDelta !== 0) {
-          if (depDelta > 0) {
+      // Handle departure slot deltas
+      const oldDepartureId = current.departure_id;
+      const newDepartureId = updatedDepartureId;
+      if (oldDepartureId || newDepartureId) {
+        if (oldDepartureId && newDepartureId && String(oldDepartureId) === String(newDepartureId)) {
+          // Same departure, guest count may have changed
+          const depDelta = newGuestCount - oldGuestCount;
+          if (depDelta !== 0) {
+            if (depDelta > 0) {
+              const depSlotRes = await dbClient.query(
+                'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
+                [depDelta, oldDepartureId]
+              );
+              if (depSlotRes.rows.length === 0) {
+                await dbClient.query('ROLLBACK');
+                began = false;
+                return res.status(400).json({ error: `Not enough departure slots to add ${depDelta} more guests.` });
+              }
+            } else {
+              await dbClient.query(
+                'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+                [Math.abs(depDelta), oldDepartureId]
+              );
+            }
+          }
+        } else {
+          // Departure changed — release old, claim new
+          if (oldDepartureId) {
+            await dbClient.query(
+              'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
+              [oldGuestCount, oldDepartureId]
+            );
+          }
+          if (newDepartureId) {
             const depSlotRes = await dbClient.query(
               'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
-              [depDelta, oldDepartureId]
+              [newGuestCount, newDepartureId]
             );
             if (depSlotRes.rows.length === 0) {
               await dbClient.query('ROLLBACK');
               began = false;
-              return res.status(400).json({ error: `Not enough departure slots to add ${depDelta} more guests.` });
+              return res.status(400).json({ error: `Not enough departure slots for the selected departure. Requested ${newGuestCount}.` });
             }
-          } else {
-            await dbClient.query(
-              'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
-              [Math.abs(depDelta), oldDepartureId]
-            );
-          }
-        }
-      } else {
-        // Departure changed — release old, claim new
-        if (oldDepartureId) {
-          await dbClient.query(
-            'UPDATE group_departures SET slots_booked = GREATEST(0, slots_booked - $1) WHERE id = $2',
-            [oldGuestCount, oldDepartureId]
-          );
-        }
-        if (newDepartureId) {
-          const depSlotRes = await dbClient.query(
-            'UPDATE group_departures SET slots_booked = slots_booked + $1 WHERE id = $2 AND slots_booked + $1 <= slots_total RETURNING slots_booked',
-            [newGuestCount, newDepartureId]
-          );
-          if (depSlotRes.rows.length === 0) {
-            await dbClient.query('ROLLBACK');
-            began = false;
-            return res.status(400).json({ error: `Not enough departure slots for the selected departure. Requested ${newGuestCount}.` });
           }
         }
       }
@@ -405,10 +467,6 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     const resolvedGroupMembers = groupMembers !== undefined ? groupMembers : (current.group_members || []);
     const resolvedSpecialDirectives = specialDirectives !== undefined ? specialDirectives : (current.special_directives || []);
 
-    const updatedDepartureId = inputDepartureId !== undefined
-      ? inputDepartureId
-      : (inputDepartureIdSnake !== undefined ? inputDepartureIdSnake : current.departure_id);
-
     const updResult = await dbClient.query(`
       UPDATE bookings SET
         client_name = $1, client_id = $2,
@@ -419,8 +477,11 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
         agent = $12, guests = $13, group_members = $14,
         notes = $15, start_date = $16, end_date = $17,
         progress = $18, special_directives = $19,
-        departure_id = $20
-      WHERE id = $21
+        departure_id = $20,
+        cancellation_reason = $21,
+        lead_source = $22,
+        referral_name = $23
+      WHERE id = $24
       RETURNING *
     `, [
       updatedClientName, updatedClientId,
@@ -437,8 +498,35 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
       progress !== undefined ? JSON.stringify(progress) : (current.progress ? JSON.stringify(current.progress) : null),
       JSON.stringify(resolvedSpecialDirectives),
       updatedDepartureId,
+      cancellationReason,
+      leadSource,
+      referralName,
       id
     ]);
+
+    // Client status synchronization on booking cancellation
+    let clientStatusForMapping = 'Active';
+    if (updatedClientId) {
+      if (status === 'Cancelled') {
+        const remainingRes = await dbClient.query(
+          "SELECT COUNT(*)::int AS count FROM bookings WHERE client_id = $1 AND status != 'Cancelled' AND id != $2",
+          [updatedClientId, id]
+        );
+        const remainingCount = Number(remainingRes.rows[0]?.count) || 0;
+        if (remainingCount === 0) {
+          await dbClient.query("UPDATE clients SET status = 'Cancelled' WHERE id = $1", [updatedClientId]);
+          clientStatusForMapping = 'Cancelled';
+        }
+      } else if (status !== undefined && status !== 'Cancelled' && current.status === 'Cancelled') {
+        await dbClient.query("UPDATE clients SET status = 'Active' WHERE id = $1", [updatedClientId]);
+        clientStatusForMapping = 'Active';
+      } else {
+        const cRes = await dbClient.query('SELECT status FROM clients WHERE id = $1', [updatedClientId]);
+        if (cRes.rows && cRes.rows.length > 0) {
+          clientStatusForMapping = cRes.rows[0].status || 'Active';
+        }
+      }
+    }
 
     // Log update to client logs if client exists
     if (updatedClientId) {
@@ -446,7 +534,7 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
       const logsRes = await dbClient.query('SELECT logs FROM clients WHERE id = $1', [updatedClientId]);
       const currentLogs = logsRes.rows[0]?.logs || [];
       const updatedLogs = [
-        { time: timestamp, text: `System: Updated booking details for ${id} (Guests: ${newGuestCount}, Status: ${status || current.status})` },
+        { time: timestamp, text: `System: Updated booking details for ${id} (Guests: ${newGuestCount}, Status: ${status || current.status}${cancellationReason ? `, Reason: ${cancellationReason}` : ''})` },
         ...currentLogs
       ];
       await dbClient.query(
@@ -461,7 +549,10 @@ router.put('/:id', requirePermission('write:bookings'), async (req, res, next) =
     const putSettingsRes = await query("SELECT value FROM settings WHERE key = 'agency_settings'");
     const putInrToUsdRate = putSettingsRes.rows[0]?.value?.inrToUsdRate || 0;
 
-    res.json(mapBookingToFrontend(updResult.rows[0], { inrToUsdRate: putInrToUsdRate }));
+    res.json(mapBookingToFrontend({
+      ...updResult.rows[0],
+      client_status: clientStatusForMapping
+    }, { inrToUsdRate: putInrToUsdRate }));
   } catch (error) {
     if (began) await dbClient.query('ROLLBACK');
     next(error);
@@ -601,6 +692,15 @@ router.delete('/:id', requirePermission('write:bookings'), async (req, res, next
 router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
   let { name, email, phone, packageId, startDate, endDate, guests, groupMembers, notes, departureId } = req.body;
 
+  const leadSource = req.body.leadSource || req.body.lead_source || null;
+  const referralName = req.body.referralName || req.body.referral_name || null;
+  const inquirySource = req.body.inquirySource || req.body.inquiry_source || null;
+
+  const isItineraryDownload = leadSource === 'Itinerary Download' ||
+    inquirySource === 'itinerary_download' ||
+    inquirySource === 'itinerary-download' ||
+    leadSource === 'itinerary_download';
+
   // Input validation
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name is required' });
@@ -624,6 +724,19 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
   // Date validations
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const localTodayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  if (isItineraryDownload) {
+    if (!startDate || (typeof startDate === 'string' && startDate.trim() === '')) {
+      startDate = localTodayStr;
+    }
+    if (!endDate || (typeof endDate === 'string' && endDate.trim() === '')) {
+      const defaultEnd = new Date(today);
+      defaultEnd.setDate(defaultEnd.getDate() + 7);
+      endDate = `${defaultEnd.getFullYear()}-${String(defaultEnd.getMonth() + 1).padStart(2, '0')}-${String(defaultEnd.getDate()).padStart(2, '0')}`;
+    }
+  }
+
   if (!startDate) {
     return res.status(400).json({ error: 'Start date is required' });
   }
@@ -631,7 +744,8 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
   if (isNaN(start.getTime())) {
     return res.status(400).json({ error: 'Invalid start date format' });
   }
-  if (start < today) {
+  const startDateOnly = String(startDate).split('T')[0];
+  if (startDateOnly < localTodayStr && start < today) {
     return res.status(400).json({ error: 'Start date cannot be in the past' });
   }
   
@@ -817,9 +931,10 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
     }
 
     // 4. Create the booking inquiry
+    const finalLeadSource = leadSource || (isItineraryDownload ? 'Itinerary Download' : null);
     const bookingRes = await dbClient.query(`
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, lead_source, referral_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
     `, [
       bookingId, client.name, client.id,
@@ -829,14 +944,18 @@ router.post('/inquiry', publicFormLimiter, async (req, res, next) => {
       startDate || null, 'Pending', 'Unassigned',
       guestCount, JSON.stringify(members), notes || '',
       startDate || null, endDate || null,
-      JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false })
+      JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false }),
+      finalLeadSource,
+      referralName
     ]);
 
     // 5. Append system log to client
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
     const logsRes = await dbClient.query('SELECT logs FROM clients WHERE id = $1', [client.id]);
     const currentLogs = logsRes.rows[0]?.logs || [];
-    let logText = `System: Submitted online inquiry for "${packageNameSelected}" (Booking ID: ${bookingId}, Guests: ${guestCount})`;
+    let logText = isItineraryDownload
+      ? `System: Captured lead via Itinerary Download for "${packageNameSelected}" (Booking ID: ${bookingId})`
+      : `System: Submitted online inquiry for "${packageNameSelected}" (Booking ID: ${bookingId}, Guests: ${guestCount})`;
     if (discountType === 'group') {
       logText += ` — Group discount of ${discountPercent}% applied (₹${discountValue.toLocaleString('en-IN')} off)`;
     }

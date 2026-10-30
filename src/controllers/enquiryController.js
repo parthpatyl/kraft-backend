@@ -47,18 +47,23 @@ const VALID_STATUSES = ['logged', 'contacted', 'reviewing', 'proposing', 'finali
 
 export async function submitEnquiry(req, res) {
   try {
-    const enquiryData = req.validatedBody;
+    const enquiryData = req.validatedBody || req.body;
     const id = `ENQ-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+
+    const leadSource = enquiryData.leadSource || enquiryData.preferences?.leadSource || req.body?.leadSource || req.body?.preferences?.leadSource || null;
+    const referralName = enquiryData.referralName || enquiryData.preferences?.referralName || req.body?.referralName || req.body?.preferences?.referralName || null;
 
     const enquiry = {
       id,
       ...enquiryData,
+      leadSource,
+      referralName,
       submittedAt: new Date().toISOString(),
     };
 
     await query(
-      `INSERT INTO enquiries (id, name, email, phone, destination, travel_date, guests, notes, preferences, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO enquiries (id, name, email, phone, destination, travel_date, guests, notes, preferences, submitted_at, lead_source, referral_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         enquiry.id,
         enquiry.name,
@@ -69,7 +74,9 @@ export async function submitEnquiry(req, res) {
         enquiry.guests,
         enquiry.notes,
         enquiry.preferences ? JSON.stringify(enquiry.preferences) : null,
-        enquiry.submittedAt
+        enquiry.submittedAt,
+        enquiry.leadSource,
+        enquiry.referralName
       ]
     );
 
@@ -147,6 +154,8 @@ export async function getEnquiryById(req, res) {
           notes: isAuthenticated ? row.notes : '[Content hidden for security]',
           preferences: isAuthenticated ? row.preferences : null,
           status: row.status || 'logged',
+          leadSource: row.lead_source || null,
+          referralName: row.referral_name || null,
           submittedAt: row.submitted_at,
         },
       });
@@ -159,7 +168,7 @@ export async function getEnquiryById(req, res) {
 
       const { rows: bRows } = await query(`
         SELECT b.id, b.client_name, b.package_name, b.guests, b.notes,
-               b.start_date, b.departure_date, b.created_at,
+               b.start_date, b.departure_date, b.created_at, b.lead_source, b.referral_name,
                c.email, c.phone
         FROM bookings b
         LEFT JOIN clients c ON c.id = b.client_id
@@ -181,6 +190,8 @@ export async function getEnquiryById(req, res) {
             notes: isAuthenticated ? (b.notes || '') : '[Content hidden for security]',
             preferences: null,
             status: enquiryStatus,
+            leadSource: b.lead_source || null,
+            referralName: b.referral_name || null,
             submittedAt: b.created_at || b.start_date,
           },
         });
@@ -207,7 +218,7 @@ export async function listEnquiries(req, res) {
   try {
     const { rows } = await query(
       `SELECT id, name, email, phone, destination, travel_date, guests, notes,
-              preferences, status, submitted_at
+              preferences, status, submitted_at, lead_source, referral_name
        FROM enquiries
        ORDER BY submitted_at DESC
        LIMIT 100`
@@ -224,6 +235,8 @@ export async function listEnquiries(req, res) {
       notes: row.notes,
       preferences: row.preferences,
       status: row.status || 'logged',
+      leadSource: row.lead_source || null,
+      referralName: row.referral_name || null,
       submittedAt: row.submitted_at,
     }));
 
@@ -338,8 +351,8 @@ export async function convertToBooking(req, res) {
     const newBookingId = `BK-${Date.now().toString(36).toUpperCase()}`;
     const guests = parseInt(enq.guests, 10) || 1;
     const bookingRes = await query(`
-      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      INSERT INTO bookings (id, client_name, client_id, package_name, package_id, departure_id, amount, tax_amount, net_amount, discount_type, discount_value, departure_date, status, agent, guests, group_members, notes, start_date, end_date, progress, lead_source, referral_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
     `, [
       newBookingId, client.name, client.id,
@@ -349,7 +362,9 @@ export async function convertToBooking(req, res) {
       enq.travel_date || null, targetStatus, 'Unassigned',
       guests, JSON.stringify([]), enq.notes || '',
       enq.travel_date || null, null,
-      JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false })
+      JSON.stringify({ quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false }),
+      enq.lead_source || null,
+      enq.referral_name || null
     ]);
 
     // 5. Update enquiry status to 'converted'

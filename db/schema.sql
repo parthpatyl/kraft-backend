@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS bookings (
     start_date DATE,
     end_date DATE,
     progress JSONB DEFAULT '{"quoteSent": true, "depositPaid": false, "flightsConfirmed": false, "finalPayment": false}'::jsonb,
+    cancellation_reason TEXT,
+    lead_source VARCHAR(100),
+    referral_name VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -224,10 +227,13 @@ CREATE TABLE IF NOT EXISTS enquiries (
     email VARCHAR(255) NOT NULL,
     phone VARCHAR(50) NOT NULL,
     destination VARCHAR(255) NOT NULL,
-    travel_date DATE NOT NULL,
+    travel_date DATE,
     guests INTEGER NOT NULL DEFAULT 1,
     notes TEXT,
     preferences JSONB,
+    status VARCHAR(20) DEFAULT 'logged',
+    lead_source VARCHAR(100),
+    referral_name VARCHAR(255),
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

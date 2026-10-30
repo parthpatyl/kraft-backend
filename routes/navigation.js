@@ -30,9 +30,20 @@ router.get('/', async (req, res, next) => {
 // PUT /api/navigation - Update navigation hierarchy (admin/manager with write:settings)
 router.put('/', requirePermission('write:settings'), async (req, res, next) => {
   try {
-    const newMenu = Array.isArray(req.body) ? req.body : req.body?.menu;
+    let newMenu = Array.isArray(req.body) ? req.body : req.body?.menu;
     if (!Array.isArray(newMenu)) {
       return res.status(400).json({ error: 'Navigation menu data must be an array' });
+    }
+
+    // If tourHighlights / highlights were passed at top level in an object wrapper, embed them into dropdown item (e.g. group_tours)
+    const rootHighlights = req.body?.tourHighlights || req.body?.highlights;
+    if (!Array.isArray(req.body) && Array.isArray(rootHighlights)) {
+      newMenu = newMenu.map((item) => {
+        if (item.id === 'group_tours' || item.type === 'dropdown') {
+          return { ...item, tourHighlights: rootHighlights };
+        }
+        return item;
+      });
     }
 
     const result = await query(
