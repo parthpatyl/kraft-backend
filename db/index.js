@@ -381,6 +381,48 @@ export const migrationsReady = (async () => {
     pool.query(`ALTER TABLE enquiries ADD COLUMN IF NOT EXISTS referral_name VARCHAR(255)`)
   );
 
+  await migrate('speciality_categories: image_url column', async () => {
+    await pool.query(`ALTER TABLE speciality_categories ADD COLUMN IF NOT EXISTS image_url TEXT`);
+    // Seed default photographic image URLs for default categories if not already present
+    const defaultImages = {
+      adventure: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80',
+      wellness: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80',
+      honeymoon: 'https://images.unsplash.com/photo-1510414842594-a61c69b5ae57?auto=format&fit=crop&w=800&q=80',
+      wildlife: 'https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=800&q=80',
+      culinary: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=800&q=80',
+      cruises: 'https://images.unsplash.com/photo-1548574505-5e239809ee19?auto=format&fit=crop&w=800&q=80',
+      photography: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=800&q=80',
+      'group-tours': 'https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?auto=format&fit=crop&w=800&q=80'
+    };
+    for (const [id, url] of Object.entries(defaultImages)) {
+      await pool.query(
+        `UPDATE speciality_categories SET image_url = $1 WHERE id = $2 AND (image_url IS NULL OR image_url = '')`,
+        [url, id]
+      );
+    }
+  });
+
+  await migrate('settings: seed destination_carousel default', async () => {
+    const defaultCarousel = [
+      { id: 'switzerland', name: 'Switzerland', region: 'Europe', search: 'Switzerland', image: '/assets/unsplash-swiss-alps.jpg', tourCount: '2 tours', isActive: true },
+      { id: 'japan', name: 'Japan', region: 'Asia', search: 'Japan', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=400&q=80', tourCount: '3 tours', isActive: true },
+      { id: 'dubai', name: 'Dubai & UAE', region: 'Middle East', search: 'Dubai', image: '/assets/unsplash-dubai.jpg', tourCount: 'Coming soon', isActive: true },
+      { id: 'bali', name: 'Bali & Indo', region: 'Asia', search: 'Bali', image: '/assets/unsplash-bali.jpg', tourCount: '3 tours', isActive: true },
+      { id: 'greece', name: 'Greece', region: 'Europe', search: 'Greece', image: '/assets/unsplash-greece.jpg', tourCount: '2 tours', isActive: true },
+      { id: 'italy', name: 'Italy & Amalfi', region: 'Europe', search: 'Italy', image: '/assets/unsplash-amalfi.jpg', tourCount: '2 tours', isActive: true },
+      { id: 'iceland', name: 'Iceland', region: 'Europe', search: 'Iceland', image: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=400&q=80', tourCount: '2 tours', isActive: true },
+      { id: 'kashmir', name: 'Kashmir, India', region: 'India', search: 'Kashmir', image: '/assets/unsplash-kashmir.png', tourCount: '1 tour', isActive: true },
+      { id: 'africa', name: 'Serengeti Safari', region: 'Africa', search: 'Safari', image: '/assets/unsplash-african-safari.jpg', tourCount: '1 tour', isActive: true },
+      { id: 'vietnam', name: 'Vietnam', region: 'Asia', search: 'Vietnam', image: '/assets/unsplash-pkg-card.jpg', tourCount: '3 tours', isActive: true }
+    ];
+    await pool.query(
+      `INSERT INTO settings (key, value)
+       VALUES ('destination_carousel', $1)
+       ON CONFLICT (key) DO NOTHING`,
+      [JSON.stringify(defaultCarousel)]
+    );
+  });
+
   await migrate('speciality_categories: create table & seed', async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS speciality_categories (

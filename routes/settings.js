@@ -201,4 +201,38 @@ router.put('/', requirePermission('write:settings'), async (req, res, next) => {
   }
 });
 
+// GET /api/settings/destination-carousel
+router.get('/destination-carousel', async (req, res, next) => {
+  try {
+    const result = await query("SELECT value FROM settings WHERE key = 'destination_carousel'");
+    if (result.rows && result.rows.length > 0 && result.rows[0].value) {
+      return res.json(result.rows[0].value);
+    }
+    const navRes = await query("SELECT value FROM settings WHERE key = 'navigation_menu'");
+    res.json([]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/settings/destination-carousel
+router.put('/destination-carousel', requirePermission('write:settings'), async (req, res, next) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : req.body?.items;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Destination carousel data must be an array' });
+    }
+    const result = await query(
+      `INSERT INTO settings (key, value)
+       VALUES ('destination_carousel', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+       RETURNING value`,
+      [JSON.stringify(items)]
+    );
+    res.json(result.rows[0].value);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

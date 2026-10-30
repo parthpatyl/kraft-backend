@@ -77,4 +77,52 @@ router.post('/reset', requirePermission('write:settings'), async (req, res, next
   }
 });
 
+const DEFAULT_DESTINATION_CAROUSEL = [
+  { id: 'switzerland', name: 'Switzerland', region: 'Europe', search: 'Switzerland', image: '/assets/unsplash-swiss-alps.jpg', tourCount: '2 tours', isActive: true },
+  { id: 'japan', name: 'Japan', region: 'Asia', search: 'Japan', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=400&q=80', tourCount: '3 tours', isActive: true },
+  { id: 'dubai', name: 'Dubai & UAE', region: 'Middle East', search: 'Dubai', image: '/assets/unsplash-dubai.jpg', tourCount: 'Coming soon', isActive: true },
+  { id: 'bali', name: 'Bali & Indo', region: 'Asia', search: 'Bali', image: '/assets/unsplash-bali.jpg', tourCount: '3 tours', isActive: true },
+  { id: 'greece', name: 'Greece', region: 'Europe', search: 'Greece', image: '/assets/unsplash-greece.jpg', tourCount: '2 tours', isActive: true },
+  { id: 'italy', name: 'Italy & Amalfi', region: 'Europe', search: 'Italy', image: '/assets/unsplash-amalfi.jpg', tourCount: '2 tours', isActive: true },
+  { id: 'iceland', name: 'Iceland', region: 'Europe', search: 'Iceland', image: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=400&q=80', tourCount: '2 tours', isActive: true },
+  { id: 'kashmir', name: 'Kashmir, India', region: 'India', search: 'Kashmir', image: '/assets/unsplash-kashmir.png', tourCount: '1 tour', isActive: true },
+  { id: 'africa', name: 'Serengeti Safari', region: 'Africa', search: 'Safari', image: '/assets/unsplash-african-safari.jpg', tourCount: '1 tour', isActive: true },
+  { id: 'vietnam', name: 'Vietnam', region: 'Asia', search: 'Vietnam', image: '/assets/unsplash-pkg-card.jpg', tourCount: '3 tours', isActive: true }
+];
+
+// GET /api/navigation/carousel - Destination carousel items
+router.get('/carousel', async (req, res, next) => {
+  try {
+    const result = await query("SELECT value FROM settings WHERE key = 'destination_carousel'");
+    if (result.rows && result.rows.length > 0 && result.rows[0].value) {
+      return res.json(result.rows[0].value);
+    }
+    res.json(DEFAULT_DESTINATION_CAROUSEL);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/navigation/carousel - Update destination carousel items (admin/manager with write:settings)
+router.put('/carousel', requirePermission('write:settings'), async (req, res, next) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : req.body?.items;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'Destination carousel data must be an array' });
+    }
+
+    const result = await query(
+      `INSERT INTO settings (key, value)
+       VALUES ('destination_carousel', $1)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+       RETURNING value`,
+      [JSON.stringify(items)]
+    );
+
+    res.json(result.rows[0].value);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
