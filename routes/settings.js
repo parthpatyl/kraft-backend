@@ -196,7 +196,7 @@ router.put('/', requirePermission('write:settings'), async (req, res, next) => {
       }
     }
 
-    if (req.body.inrToUsdRate !== undefined && req.body.inrToUsdRate !== null && req.body.inrToUsdRate !== '') {
+    if (req.body.inrToUsdRate !== undefined && req.body.inrToUsdRate !== null && req.body.inrToUsdRate !== '' && Number(req.body.inrToUsdRate) !== 0) {
       const rateCheck = validateNumber(req.body.inrToUsdRate, { min: 0.0001, fieldName: 'inrToUsdRate' });
       if (!rateCheck.isValid) {
         return res.status(400).json({ error: rateCheck.error, field: 'inrToUsdRate' });

@@ -44,6 +44,7 @@ function mapPackageToFrontend(row, { admin = false, financials = false, inrToUsd
     bestMonth: row.best_month ?? '',
     ctaBadge: row.cta_badge ?? '',
     isBespoke: row.is_bespoke ?? false,
+    weatherCity: row.weather_city ?? '',
     category: row.category ?? 'standard',
     categoryIds: row.category_ids || [],
     taxRate,
@@ -203,6 +204,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       bestMonth,
       ctaBadge,
       isBespoke,
+      weatherCity,
       termsAndConditions,
       categoryIds
     } = req.body;
@@ -220,8 +222,8 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
     const slots_total = slots?.total || 10;
 
     const queryText = `
-      INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, category, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, best_month, cta_badge, is_bespoke, terms_and_conditions)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+      INSERT INTO packages (id, name, duration, base_price, cost_price, tax_rate, tax_inclusive, region, category, slots_booked, slots_total, trend, inclusions_selection, hero_image, card_image, description, highlights, inclusions, exclusions, itinerary, best_month, cta_badge, is_bespoke, weather_city, terms_and_conditions)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *
     `;
 
@@ -249,6 +251,7 @@ router.post('/', requirePermission('create:packages'), async (req, res, next) =>
       bestMonth ?? null,
       ctaBadge ?? null,
       isBespoke ?? false,
+      weatherCity ?? null,
       termsAndConditions ?? null
     ]);
 
@@ -297,6 +300,7 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       bestMonth,
       ctaBadge,
       isBespoke,
+      weatherCity,
       termsAndConditions,
       categoryIds
     } = req.body;
@@ -396,8 +400,9 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
         best_month = $20,
         cta_badge = $21,
         is_bespoke = $22,
-        terms_and_conditions = $23
-      WHERE id = $24
+        weather_city = $23,
+        terms_and_conditions = $24
+      WHERE id = $25
       RETURNING *
     `;
 
@@ -424,6 +429,7 @@ router.put('/:id', requirePermission('write:packages'), async (req, res, next) =
       bestMonth !== undefined ? bestMonth : current.best_month,
       ctaBadge !== undefined ? ctaBadge : current.cta_badge,
       isBespoke !== undefined ? isBespoke : current.is_bespoke,
+      weatherCity !== undefined ? weatherCity : current.weather_city,
       termsAndConditions !== undefined ? termsAndConditions : current.terms_and_conditions,
       id
     ]);

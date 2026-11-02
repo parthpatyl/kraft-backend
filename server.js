@@ -298,6 +298,11 @@ app.use((err, req, res, next) => {
 });
 
 if (process.env.NODE_ENV !== 'test') {
+  // Ensure schema columns exist
+  query('ALTER TABLE packages ADD COLUMN IF NOT EXISTS weather_city VARCHAR(100)').catch(err => {
+    logger.warn('Could not run weather_city migration:', err.message);
+  });
+
   app.listen(PORT, () => {
     logger.info(`Server started on port ${PORT}`);
     console.log(`Server is running on port ${PORT}`);

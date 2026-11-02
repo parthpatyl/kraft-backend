@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS packages (
     best_month VARCHAR(50),
     cta_badge VARCHAR(100),
     is_bespoke BOOLEAN DEFAULT FALSE,
+    weather_city VARCHAR(100),
     terms_and_conditions TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
