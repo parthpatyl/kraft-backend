@@ -138,6 +138,46 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// GET single package by ID (case-insensitive)
+router.get('/:id', async (req, res, next) => {
+  try {
+    const user = tryDecodeUser(req);
+    const isAdmin = !!user;
+    const canViewFinancials = user ? roleHas(user.role, 'read:financials') : false;
+    const { id } = req.params;
+
+    const sql = `
+      SELECT p.*, COALESCE(
+        (SELECT json_agg(category_id) FROM package_speciality_categories WHERE package_id = p.id),
+        '[]'::json
+      ) AS category_ids 
+      FROM packages p
+      WHERE LOWER(p.id) = LOWER($1)
+      LIMIT 1
+    `;
+
+    const [pkgResult, settingsResult] = await Promise.all([
+      query(sql, [id]),
+      query("SELECT value FROM settings WHERE key = 'agency_settings'")
+    ]);
+
+    if (pkgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+
+    const inrToUsdRate = settingsResult.rows[0]?.value?.inrToUsdRate || 0;
+    const mapped = mapPackageToFrontend(pkgResult.rows[0], {
+      admin: isAdmin,
+      financials: canViewFinancials,
+      inrToUsdRate
+    });
+
+    res.json(mapped);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // POST a new package
 router.post('/', requirePermission('create:packages'), async (req, res, next) => {
   try {

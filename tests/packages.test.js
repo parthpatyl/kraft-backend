@@ -75,4 +75,35 @@ describe('Packages API Routes', () => {
       expect(res.body[0]).toHaveProperty('region', 'Kashmir');
     });
   });
+
+  describe('GET /api/packages/:id', () => {
+    it('returns a single package by id for public consumer', async () => {
+      query.mockResolvedValueOnce({ rows: [sampleRow] });
+      query.mockResolvedValueOnce({ rows: [] }); // settings query
+      const res = await request(app).get('/api/packages/pkg-1');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('id', 'pkg-1');
+      expect(res.body).toHaveProperty('price', 25000);
+      expect(res.body).not.toHaveProperty('costPrice');
+    });
+
+    it('returns package with admin fields when admin token is provided', async () => {
+      query.mockResolvedValueOnce({ rows: [sampleRow] });
+      query.mockResolvedValueOnce({ rows: [] }); // settings query
+      const token = jwt.sign({ id: 1, role: 'admin' }, process.env.JWT_SECRET);
+      const res = await request(app)
+        .get('/api/packages/pkg-1')
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('costPrice', 18000);
+      expect(res.body).toHaveProperty('basePrice', 25000);
+    });
+
+    it('returns 404 when package is not found', async () => {
+      query.mockResolvedValueOnce({ rows: [] });
+      const res = await request(app).get('/api/packages/non-existent-id');
+      expect(res.status).toBe(404);
+      expect(res.body).toHaveProperty('error', 'Package not found');
+    });
+  });
 });
