@@ -228,7 +228,7 @@ app.get('/enquiries/:id', (req, res) => {
 });
 
 // Health check with SMTP and Redis status
-app.get('/api/health', async (req, res) => {
+const healthCheckHandler = async (req, res) => {
   const start = Date.now();
   const HEALTH_TIMEOUT_MS = parseInt(process.env.HEALTH_CHECK_TIMEOUT_MS, 10) || 5000;
   const SMTP_TIMEOUT_MS = parseInt(process.env.SMTP_HEALTH_CHECK_TIMEOUT_MS, 10) || 2500;
@@ -278,7 +278,20 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date(),
     });
   }
+};
+
+// Root endpoint for platform health checks and status pings
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    name: 'Kraft Your Trip Backend API',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
+
+app.get('/health', healthCheckHandler);
+app.get('/api/health', healthCheckHandler);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

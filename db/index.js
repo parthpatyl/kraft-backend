@@ -10,12 +10,34 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const { Pool } = pg;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://postgres@localhost:5432/kraft_your_trip',
-  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost') && !process.env.DATABASE_URL.includes('127.0.0.1')
-    ? { rejectUnauthorized: false }
-    : false
-});
+const buildPoolConfig = () => {
+  if (process.env.DATABASE_URL) {
+    const isLocal = process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
+    return {
+      connectionString: process.env.DATABASE_URL,
+      ssl: isLocal ? false : { rejectUnauthorized: false }
+    };
+  }
+
+  if (process.env.DB_HOST) {
+    const isLocal = process.env.DB_HOST === 'localhost' || process.env.DB_HOST === '127.0.0.1';
+    return {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 5432,
+      database: process.env.DB_NAME || 'kraft_your_trip',
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD ? String(process.env.DB_PASSWORD) : undefined,
+      ssl: isLocal ? false : { rejectUnauthorized: false }
+    };
+  }
+
+  return {
+    connectionString: 'postgres://postgres@localhost:5432/kraft_your_trip',
+    ssl: false
+  };
+};
+
+const pool = new Pool(buildPoolConfig());
 
 export const query = (text, params) => pool.query(text, params);
 export const getClient = () => pool.connect();

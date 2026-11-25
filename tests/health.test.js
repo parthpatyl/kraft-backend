@@ -32,6 +32,19 @@ describe('GET /api/health', () => {
     expect(res.body).toHaveProperty('timestamp');
   });
 
+  it('should return 200 OK on GET /health alias', async () => {
+    const res = await request(app).get('/health');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('status', 'OK');
+  });
+
+  it('should return 200 OK on root path GET / for platform health monitors', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('status', 'OK');
+    expect(res.body).toHaveProperty('name', 'Kraft Your Trip Backend API');
+  });
+
   it('should return graceful degradation when getQueueStats fails', async () => {
     const { getQueueStats } = await import('../src/services/emailQueue.js');
     getQueueStats.mockRejectedValueOnce(new Error('Redis timeout'));
